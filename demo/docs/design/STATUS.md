@@ -10,7 +10,7 @@
 This CDS tracks the design health of the OpenCALL Demo Library. The demo is a multi-subdomain demonstration of the OpenCALL v1.0 specification:
 
 - `api.opencall-api.com` — OpenCALL API server (11 operations)
-- `app.opencall-api.com` — Interactive dashboard with split-pane envelope viewer
+- `demo.opencall-api.com` — Interactive dashboard with split-pane envelope viewer
 - `www.opencall-api.com` — Static brochure site
 - `agents.opencall-api.com` — AI agent instructions
 

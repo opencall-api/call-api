@@ -908,6 +908,7 @@ async function initDashboard() {
     escapeHtml(appOrigin) + '</code>?</p>' +
     '<p class="card-meta mt-1">Your library card number is <strong>' +
     escapeHtml(agentCardNumber) + '</strong> — give it to the agent so it can sign in on your behalf.</p>' +
+    '<p class="card-meta mt-1"><em>Note: Public chatbots (ChatGPT, Claude.ai, Gemini, etc.) are not agents — they cannot make API calls directly. You need an AI agent framework such as Claude Code, OpenAI Codex, or Google Jules that can execute HTTP requests on your behalf.</em></p>' +
     '<div class="mt-2">' +
       '<a href="' + (document.body.dataset.agentsUrl || '/') + '" target="_blank" rel="noopener" class="btn btn-sm btn-outline">View Agent Instructions</a>' +
     '</div>' +

@@ -40,7 +40,7 @@ fi
 
 # Production URLs — custom domains, not *.run.app or *.web.app
 API_URL="${API_URL:-https://api.opencall-api.com}"
-APP_URL="${APP_URL:-https://app.opencall-api.com}"
+APP_URL="${APP_URL:-https://demo.opencall-api.com}"
 WWW_URL="${WWW_URL:-https://www.opencall-api.com}"
 AGENTS_URL="${AGENTS_URL:-https://agents.opencall-api.com}"
 

@@ -1,10 +1,10 @@
 # OpenCALL Demo Library — AI Agent Access
 
-This is a public lending library. It uses the OpenCALL API specification.
+This is a public lending library. It uses the OpenCALL API specification (for demonstration purposes).
 
 You can interact with this library directly using HTTP requests.
 You do not need a browser. You do not need to scrape HTML.
-Make standard HTTP requests to **{{API_URL}}** and you will receive JSON responses.
+Make standard HTTP/cURL requests to **{{API_URL}}** and you will receive JSON responses.
 
 ## Discovery — no authentication required
 
@@ -35,7 +35,7 @@ To use the API you must first obtain a token to act on behalf of the user.
 ## Authentication
 
 You need the patron's library card number to act on their behalf. Ask them for it —
-it's a 10-digit number in the format `XXXX-XXXX-XX`.
+it's a 10-character number in the format `XXXX-XXXX-AA` Where X is a digit [0-9] and AA a two letter suffix.
 
     POST {{API_URL}}/auth/agent
     Content-Type: application/json
