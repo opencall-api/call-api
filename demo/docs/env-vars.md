@@ -26,10 +26,11 @@ Bun automatically loads `.env` files, so no dotenv package is needed.
 | Variable            | Required | Default                           | Description                                                                                |
 | ------------------- | -------- | --------------------------------- | ------------------------------------------------------------------------------------------ |
 | `PORT` / `APP_PORT` | No       | `3000`                            | HTTP port the App server listens on. `APP_PORT` takes precedence if both are set           |
-| `API_URL`           | **Yes**  | --                                | Internal URL of the API service (e.g. the Cloud Run service URL)                           |
+| `API_URL`           | **Yes**  | --                                | URL of the API service (passed to browser for direct CORS calls)                           |
 | `SESSION_DB_PATH`   | No       | `./sessions.db`                   | Path to the SQLite database used for session storage                                       |
 | `COOKIE_SECRET`     | **Yes**  | --                                | Secret key used for signing session cookies. Use a random string of at least 32 characters |
-| `AGENTS_URL`        | No       | `https://agents.opencall-api.com` | Base URL for the agents documentation site, used to build links in the UI                  |
+| `AGENTS_URL`        | No       | `https://agents.opencall-api.com` | Base URL for the agents documentation site, used in discovery headers and meta tags        |
+| `WWW_URL`           | No       | `https://www.opencall-api.com`    | Base URL for the brochure site, used for nav links                                         |
 
 ---
 
@@ -57,9 +58,10 @@ ADMIN_SECRET=change-me-to-a-real-secret
 CALL_VERSION=2026-02-10
 
 # App
-API_URL=http://localhost:8080
+API_URL=http://localhost:3000
 COOKIE_SECRET=change-me-to-a-32-char-secret-key
-AGENTS_URL=http://localhost:5173
+AGENTS_URL=http://localhost:8888
+WWW_URL=http://localhost:8080
 
 # Deploy
 CLOUD_RUN_REGION=australia-southeast1

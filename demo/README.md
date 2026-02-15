@@ -21,45 +21,58 @@ Four services, each a standalone Bun server:
 | ---------- | --------- | -------------------------------------------------------------------------- | ---------- |
 | **API**    | `api/`    | OpenCALL API server — operation dispatch, auth, SQLite database            | 3000       |
 | **App**    | `app/`    | Human-facing web app — server-rendered HTML pages, proxies auth to the API | 8000       |
-| **WWW**    | `www/`    | Brochure/landing page — static site explaining the specification                | 8080       |
+| **WWW**    | `www/`    | Brochure/landing page — static site explaining the specification           | 8080       |
 | **Agents** | `agents/` | Agent instructions — serves Markdown files that AI agents read for context | 8888       |
 
 ```
 demo/
   api/          API server (OpenCALL specification implementation)
     src/
-      auth/       Token issuance and validation
-      call/       Operation dispatcher
-      db/         SQLite schema, seed data, connection
-      ops/        Registry, polling, chunks
-      operations/ Operation handlers (catalog, item, patron, report)
-      services/   Analytics, media, reports
+      auth/       Token issuance, validation, and auth route handlers
+      call/       Operation dispatcher, envelope types, error constructors
+      db/         SQLite schema, seed data, reset, connection
+      ops/        Registry, polling, chunks, rate limiting
+      operations/ 12 operation handlers (catalog, item, patron, report)
+      services/   Analytics, catalog, lending, lifecycle, media, reports
       server.ts   Entry point
-    tests/
+    tests/        9 test files (auth, call, chunks, cors, errors,
+                  integration, media, polling, registry)
 
   app/          Web application
     src/
       client/     TypeScript modules (bundled to public/app.js via bun build)
+        pages/    Page modules (account, auth-page, catalog, dashboard,
+                  item-detail, reports)
+      db/         SQLite connection and schema for sessions
       server.ts   Entry point — serves pages, proxies auth
-      pages.ts    HTML templates
+      auth.ts     Auth flow (login, logout, scope changes)
+      session.ts  Session store (SQLite) + cookie handling
+      pages.ts    HTML page templates
+      proxy.ts    Legacy proxy utilities
     public/       Static assets (app.js is a build artifact)
-    tests/
+    tests/        2 test files (integration, session)
 
-  www/          Brochure site
+  www/          Brochure site (Bun server locally, Firebase Hosting in prod)
+    src/
+      server.ts   Local dev server with template replacement
     index.html    Template with {{APP_URL}} / {{API_URL}} placeholders
     style.css
     build.sh      Builds dist/ by replacing template placeholders
     dist/         Built output (gitignored), deployed to Firebase Hosting
 
-  agents/       Agent instructions
+  agents/       Agent instructions (Bun server locally, Firebase Hosting in prod)
     src/
-      server.ts   Serves Markdown instructions
+      server.ts   Local dev server with template replacement
+    index.md      Markdown template with {{API_URL}} placeholders
+    build.sh      Builds dist/ by replacing template placeholders
     dist/         Built output (gitignored), deployed to Firebase Hosting
 
   scripts/
     run-local.sh  Start all 4 services locally
     deploy.sh     Full production deployment (Cloud Run + Firebase)
     setup.sh      Initial GCP project setup
+    setup-scheduler.sh  Cloud Scheduler setup for periodic DB reset
+    launch.sh     Alternative launcher
 ```
 
 ## Running locally
@@ -107,10 +120,10 @@ APP_URL=https://demo.opencall-api.com API_URL=https://api.opencall-api.com bash 
 ## Testing
 
 ```bash
-# API server tests
+# API server tests (99 tests across 9 files)
 cd api && bun test
 
-# App server tests
+# App server tests (34 tests across 2 files)
 cd app && bun test
 ```
 

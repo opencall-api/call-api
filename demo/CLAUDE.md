@@ -1,14 +1,13 @@
-
 ## Services
 
 This demo has 4 services, all Bun servers:
 
-| Service | Directory | Entry point | Local port | Production |
-|---------|-----------|-------------|------------|------------|
-| API | `api/` | `src/server.ts` | 3000 | Cloud Run (`api.opencall-api.com`) |
-| App | `app/` | `src/server.ts` | 8000 | Cloud Run (`demo.opencall-api.com`) |
-| WWW | `www/` | `src/server.ts` | 8080 | Firebase Hosting (`opencall-api.com`) |
-| Agents | `agents/` | `src/server.ts` | 8888 | Firebase Hosting (`agents.opencall-api.com`) |
+| Service | Directory | Entry point     | Local port | Production                                   |
+| ------- | --------- | --------------- | ---------- | -------------------------------------------- |
+| API     | `api/`    | `src/server.ts` | 3000       | Cloud Run (`api.opencall-api.com`)           |
+| App     | `app/`    | `src/server.ts` | 8000       | Cloud Run (`demo.opencall-api.com`)          |
+| WWW     | `www/`    | `src/server.ts` | 8080       | Firebase Hosting (`www.opencall-api.com`)    |
+| Agents  | `agents/` | `src/server.ts` | 8888       | Firebase Hosting (`agents.opencall-api.com`) |
 
 - **API** — OpenCALL API server. Handles `POST /call` dispatch, token auth, operation registry, async polling, chunked retrieval. SQLite database.
 - **App** — Human-facing web app. Server-rendered HTML, proxies auth to API. Client JS is TypeScript modules in `app/src/client/`, bundled via `bun run build` to `app/public/app.js`.
