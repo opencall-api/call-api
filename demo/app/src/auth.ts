@@ -86,6 +86,12 @@ export function handleAuthPage(req: Request): Response {
 
       ${resetBanner}
 
+      <div class="banner banner-muted">
+        <p>This is a <strong>mock login</strong>&mdash;no real credentials required. Pick any username and
+        select the API scopes you want. A demo token will be issued directly, bypassing the need
+        for an identity provider or OAuth flow. The demo resets periodically.</p>
+      </div>
+
       <form method="POST" action="/auth" class="auth-form">
         <div class="form-group">
           <input type="text" id="username" name="username" placeholder="Enter a username or leave blank"

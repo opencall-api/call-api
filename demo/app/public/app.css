@@ -1533,6 +1533,43 @@ select.input {
   pointer-events: none;
 }
 
+/* Banners inside auth card */
+.banner {
+  padding: 0.75rem 1rem;
+  border-radius: 8px;
+  font-size: 0.8rem;
+  line-height: 1.45;
+  margin-bottom: 1.25rem;
+}
+
+.banner p {
+  margin: 0;
+}
+
+.banner-info {
+  background: #e8f0fe;
+  color: #1a3a6b;
+  border: 1px solid #b8d4fe;
+}
+
+.banner-muted {
+  background: #f5f5f5;
+  color: #555;
+  border: 1px solid #e0e0e0;
+}
+
+[data-theme="dark"] .banner-info {
+  background: #1a2a40;
+  color: #8bb8f0;
+  border-color: #2a4060;
+}
+
+[data-theme="dark"] .banner-muted {
+  background: #1a1a1a;
+  color: #999;
+  border-color: #333;
+}
+
 /* Disclaimer below card */
 .auth-disclaimer {
   text-align: center;
