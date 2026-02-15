@@ -5,6 +5,7 @@
   "type": "module",
   "private": true,
   "scripts": {
+    "build": "bun build src/client/main.ts --outfile public/app.js --minify",
     "start": "bun run src/server.ts",
     "test": "bun test"
   },
