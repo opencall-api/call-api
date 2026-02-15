@@ -32,7 +32,7 @@ export async function initDashboard() {
   // Welcome
   html += '<div class="page-header">' +
     '<h1>Welcome back!</h1>' +
-    '<p>Explore the OpenCALL Demo Library to see the protocol in action.</p>' +
+    '<p>Explore the OpenCALL Demo Library to see the specification in action.</p>' +
   '</div>';
 
   // Quick links
