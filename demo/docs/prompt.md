@@ -136,8 +136,10 @@ demo/
 │   │   ├── ops/
 │   │   │   ├── registry.ts            # Build + serve the operation registry
 │   │   │   ├── polling.ts             # GET /ops/{requestId} handler
-│   │   │   └── chunks.ts             # GET /ops/{requestId}/chunks handler
+│   │   │   ├── chunks.ts             # GET /ops/{requestId}/chunks handler
+│   │   │   └── rate-limit.ts         # Polling rate limiter (429 responses)
 │   │   ├── auth/
+│   │   │   ├── handlers.ts            # POST /auth and POST /auth/agent route handlers
 │   │   │   ├── tokens.ts              # Token minting + validation
 │   │   │   ├── scopes.ts              # Scope definitions + enforcement
 │   │   │   └── middleware.ts          # Auth extraction from Authorization header
@@ -151,6 +153,7 @@ demo/
 │   │   │   ├── patron-get.ts          # v1:patron.get (sync)
 │   │   │   ├── patron-history.ts      # v1:patron.history (sync)
 │   │   │   ├── patron-fines.ts        # v1:patron.fines (sync) — requires patron:billing
+│   │   │   ├── patron-reservations.ts # v1:patron.reservations (sync)
 │   │   │   ├── catalog-bulk-import.ts # v1:catalog.bulkImport (async) — requires items:manage
 │   │   │   └── report-generate.ts     # v1:report.generate (async)
 │   │   ├── services/
@@ -166,12 +169,18 @@ demo/
 │   │       ├── reset.ts               # Reset DB to seed state (periodic maintenance)
 │   │       └── connection.ts          # bun:sqlite connection setup
 │   ├── tests/
-│   │   ├── call.test.ts               # POST /call integration tests
-│   │   ├── registry.test.ts           # GET /.well-known/ops tests
-│   │   ├── polling.test.ts            # Async lifecycle + polling tests
-│   │   ├── chunks.test.ts             # Chunked retrieval tests
+│   │   ├── helpers/
+│   │   │   ├── client.ts              # Test HTTP client utilities
+│   │   │   └── server.ts              # Test server setup/teardown
 │   │   ├── auth.test.ts               # Auth flow tests
-│   │   └── errors.test.ts             # Error envelope + status code tests
+│   │   ├── call.test.ts               # POST /call integration tests
+│   │   ├── chunks.test.ts             # Chunked retrieval tests
+│   │   ├── cors.test.ts               # CORS configuration tests
+│   │   ├── errors.test.ts             # Error envelope + status code tests
+│   │   ├── integration.test.ts        # End-to-end integration tests
+│   │   ├── media.test.ts              # Media/GCS signed URL tests
+│   │   ├── polling.test.ts            # Async lifecycle + polling tests
+│   │   └── registry.test.ts           # GET /.well-known/ops tests
 │   ├── Dockerfile
 │   ├── package.json
 │   └── tsconfig.json
@@ -181,39 +190,74 @@ demo/
 │   │   ├── server.ts                  # Bun.serve() entry point — serves HTML + static files
 │   │   ├── session.ts                 # Session store (SQLite) + cookie handling
 │   │   ├── auth.ts                    # GET /auth page, POST /auth → mint token, return to browser
-│   │   └── pages.ts                   # Page renderers (dashboard, catalog, account, etc.)
-│   ├── views/
-│   │   ├── layout.html                # Shell: nav, sidebar, main content area, patron badge top-right
-│   │   ├── auth.html                  # Auth page: username, scope checkboxes, mint button
-│   │   ├── dashboard.html             # Main dashboard with split-pane request/response viewer
-│   │   ├── catalog.html               # Catalog browser — list, search, filter
-│   │   ├── item.html                  # Item detail — metadata + cover image
-│   │   ├── account.html               # Patron account — overdue items, return button, card number
-│   │   └── report.html                # Report generator — form, progress, chunk viewer
+│   │   ├── pages.ts                   # HTML page template renderers (dashboard, catalog, account, etc.)
+│   │   ├── proxy.ts                   # Legacy proxy utilities
+│   │   ├── db/
+│   │   │   ├── connection.ts          # bun:sqlite connection for session DB
+│   │   │   └── schema.sql             # Session database schema
+│   │   └── client/                    # TypeScript modules (bundled to public/app.js via bun build)
+│   │       ├── main.ts                # Client entry point
+│   │       ├── api.ts                 # Direct API calls with CORS (callAPI wrapper)
+│   │       ├── envelope.ts            # Request/response tracking for envelope viewer
+│   │       ├── auth.ts                # Client-side auth utilities
+│   │       ├── theme.ts               # Dark/light mode toggle
+│   │       ├── ui.ts                  # Shared UI components and helpers
+│   │       ├── utils.ts               # General utilities
+│   │       └── pages/                 # Client-side page modules
+│   │           ├── account.ts         # Patron account page
+│   │           ├── auth-page.ts       # Auth/login page
+│   │           ├── catalog.ts         # Catalog browser page
+│   │           ├── dashboard.ts       # Dashboard page
+│   │           ├── item-detail.ts     # Item detail page
+│   │           └── reports.ts         # Report generator page
 │   ├── public/
-│   │   ├── app.css                    # Dashboard styles
-│   │   └── app.js                     # Client-side JS: call API, render envelopes, polling
+│   │   └── app.js                     # Build artifact — bundled client JS
+│   ├── tests/
+│   │   ├── helpers/
+│   │   │   └── server.ts              # Test server setup/teardown
+│   │   ├── integration.test.ts        # End-to-end integration tests
+│   │   └── session.test.ts            # Session management tests
 │   ├── Dockerfile
 │   ├── package.json
 │   └── tsconfig.json
 │
 ├── www/                               # === www.opencall-api.com ===
-│   ├── index.html                     # Brochure landing page
-│   ├── style.css
+│   ├── src/
+│   │   └── server.ts                  # Local dev server (Bun) with runtime template replacement
+│   ├── index.html                     # Template with {{APP_URL}} / {{API_URL}} placeholders
+│   ├── style.css                      # Brochure site styles
 │   ├── assets/
 │   │   └── xkcd-927.png              # XKCD Standards comic
-│   └── firebase.json                  # Firebase Hosting config
+│   ├── build.sh                       # Builds dist/ by replacing template placeholders
+│   ├── Dockerfile                     # Container for local/CI use
+│   └── dist/                          # Built output (gitignored), deployed to Firebase Hosting
 │
 ├── agents/                            # === agents.opencall-api.com ===
-│   ├── index.md                       # Root endpoint — plain markdown instructions for LLMs
-│   └── firebase.json                  # Firebase Hosting config (serves .md as text/markdown)
+│   ├── src/
+│   │   └── server.ts                  # Local dev server (Bun) with runtime template replacement
+│   ├── index.md                       # Markdown template with {{API_URL}} placeholders
+│   ├── build.sh                       # Builds dist/ by replacing template placeholders
+│   ├── Dockerfile                     # Container for local/CI use
+│   └── dist/                          # Built output (gitignored), deployed to Firebase Hosting
 │
+├── scripts/
+│   ├── run-local.sh                   # Start all 4 services locally
+│   ├── deploy.sh                      # Full production deployment (Cloud Run + Firebase)
+│   ├── setup.sh                       # Initial GCP project setup
+│   ├── setup-scheduler.sh             # Cloud Scheduler setup for periodic DB reset
+│   └── launch.sh                      # Alternative launcher
 ├── docs/
-│   └── prompt.md                      # This file
+│   ├── prompt.md                      # This file
+│   └── env-vars.md                    # Environment variable documentation
+├── firebase.json                      # Firebase Hosting config (WWW + Agents targets)
+├── docker-compose.yml                 # Docker Compose for all 4 services
+├── index.ts                           # Root entry point
+├── package.json                       # Root package.json
+├── tsconfig.json                      # Root TypeScript config
 └── CLAUDE.md
 ```
 
-Three deployable units. No monorepo tooling — each has its own `package.json` and `Dockerfile` (except `www/` which is static). Shared types can be copied or symlinked during the SDD phase if needed.
+Four services, each with its own `package.json` and `Dockerfile`. WWW and Agents run as Bun servers locally (with runtime template replacement) but deploy as static sites to Firebase Hosting (with build-time template replacement via `build.sh`). No monorepo tooling.
 
 ---
 
@@ -724,6 +768,51 @@ export const result = z.object({
 
 ---
 
+### `v1:patron.reservations` — List patron's reservations
+
+`@execution sync` · `@security patron:read` · `@timeout 5s` · `@ttl 0s` · `@cache none`
+
+**Args (Zod):**
+
+```ts
+export const args = z.object({
+  limit: z.int().min(1).max(100).optional().default(20),
+  offset: z.int().min(0).optional().default(0),
+  status: z
+    .enum(["pending", "ready", "collected", "cancelled"])
+    .optional()
+    .describe("Filter by reservation status"),
+});
+```
+
+**Result (Zod):**
+
+```ts
+export const result = z.object({
+  patronId: z.string(),
+  reservations: z.array(
+    z.object({
+      reservationId: z.string(),
+      itemId: z.string(),
+      title: z.string(),
+      creator: z.string(),
+      status: z.string(),
+      reservedAt: z.string(),
+      readyAt: z.string().nullable(),
+      collectedAt: z.string().nullable(),
+      cancelledAt: z.string().nullable(),
+    }),
+  ),
+  total: z.number(),
+  limit: z.number(),
+  offset: z.number(),
+});
+```
+
+**Behavior:** Lists all reservations for the current patron with optional status filtering and pagination. No args — the patron is derived from the auth token.
+
+---
+
 ### `v1:patron.fines` — Get outstanding fines for the current patron
 
 `@execution sync` · `@security patron:billing` · `@timeout 5s` · `@ttl 0s` · `@cache none`
@@ -983,7 +1072,7 @@ The app is the human-facing frontend. It wraps the API token in a server-side se
 | `items:write`      | `v1:item.reserve`                          | Yes             | Yes    |
 | `items:checkin`    | `v1:item.return`                           | Yes             | **No** |
 | `items:manage`     | `v1:catalog.bulkImport`                    | **No**          | No     |
-| `patron:read`      | `v1:patron.get`, `v1:patron.history`       | Yes             | Yes    |
+| `patron:read`      | `v1:patron.get`, `v1:patron.history`, `v1:patron.reservations` | Yes | Yes |
 | `patron:billing`   | `v1:patron.fines`                          | **No**          | No     |
 | `reports:generate` | `v1:report.generate`                       | Yes             | No     |
 
@@ -1544,23 +1633,24 @@ The markdown is a **template** — `{{API_URL}}` placeholders are replaced with 
 ```markdown
 # OpenCALL Demo Library — AI Agent Access
 
-This is a public lending library. It uses the OpenCALL API specification.
+This is a public lending library. It uses the OpenCALL API specification (for demonstration purposes).
 
-## Authentication
+You can interact with this library directly using HTTP requests.
+You do not need a browser. You do not need to scrape HTML.
+Make standard HTTP/cURL requests to **{{API_URL}}** and you will receive JSON responses.
 
-You need the patron's library card number to act on their behalf. Ask them for it —
-it's a 10-digit number in the format `XXXX-XXXX-XX`.
+## Discovery — no authentication required
 
-    POST {{API_URL}}/auth/agent
-    Content-Type: application/json
+Fetch the operation registry to see everything the API supports:
 
-    { "cardNumber": "<patron-card-number>" }
+    GET {{API_URL}}/.well-known/ops
 
-The response includes a `token`. Use it as a bearer token on all subsequent requests:
+This returns a JSON registry of every operation, including argument schemas and return types.
 
-    Authorization: Bearer <token>
+This registry is the authoritative source for what you can do, what arguments each
+operation accepts, and what it returns. Start here.
 
-## API
+## Using the API
 
 All operations use a single endpoint:
 
@@ -1573,14 +1663,21 @@ All operations use a single endpoint:
 Responses use a standard envelope with a `state` field (`complete`, `accepted`,
 `pending`, or `error`). Read the `state` to determine what happened.
 
-## Discovery
+To use the API you must first obtain a token to act on behalf of the user.
 
-Discover all available operations, their schemas, and constraints:
+## Authentication
 
-    GET {{API_URL}}/.well-known/ops
+You need the patron's library card number to act on their behalf. Ask them for it —
+it's a 10-character number in the format `XXXX-XXXX-AA` Where X is a digit [0-9] and AA a two letter suffix.
 
-This registry is the authoritative source for what you can do, what arguments each
-operation accepts, and what it returns. Start here.
+    POST {{API_URL}}/auth/agent
+    Content-Type: application/json
+
+    { "cardNumber": "<patron-card-number>" }
+
+The response includes a `token`. Use it as a bearer token on all subsequent requests:
+
+    Authorization: Bearer <token>
 ```
 
 ### Key design decisions
@@ -1761,13 +1858,12 @@ gcloud run deploy opencall-app \
   --allow-unauthenticated \
   --set-env-vars API_URL=https://api.opencall-api.com,AGENTS_URL=https://agents.opencall-api.com,WWW_URL=https://www.opencall-api.com
 
-# Brochure site (Firebase) — APP_URL baked at build time
-APP_URL=https://demo.opencall-api.com bun run build
-cd www && firebase deploy --only hosting
+# Build static sites (template replacement → dist/)
+APP_URL=https://demo.opencall-api.com API_URL=https://api.opencall-api.com bash www/build.sh
+API_URL=https://api.opencall-api.com bash agents/build.sh
 
-# Agent instructions (Firebase) — API_URL baked at build time
-API_URL=https://api.opencall-api.com bun run build
-cd ../agents && firebase deploy --only hosting
+# Deploy both hosting sites to Firebase
+firebase deploy --only hosting
 ```
 
 ### Environment variables
@@ -1811,23 +1907,18 @@ Cross-service URL variables (`API_URL`, `APP_URL`, `WWW_URL`, `AGENTS_URL`) are 
 
 ---
 
-## What this brief does NOT cover (deferred to SDD)
+## Implementation notes
 
-- Exact SQL schema DDL for all tables
-- Seed script implementation details (Open Library API calls, faker config)
-- Overdue item seeding logic (how items are assigned to new patrons on-the-fly)
-- GCS signed URL mechanics
-- Rate limiting algorithm
-- Exact XState actor management code
-- Test case specifications
-- CORS configuration for browser-to-API calls
-- Envelope viewer component design (exact HTML/CSS/JS)
-- Agent discovery standard selection (which `<meta>` / header / well-known convention wins)
-- CI/CD pipeline
-- Custom domain + SSL setup for all four subdomains
-- CORS configuration between app ↔ api
-- Cookie security details (signing, rotation)
-- Monitoring / logging
-- Library card number generation algorithm (uniqueness, formatting)
-- Database reset implementation details (Cloud Scheduler config, reset script)
-- Analytics: exact returning-visitor matching logic, admin query patterns, potential future admin dashboard
+All items from the original brief have been implemented. The following details are in the codebase itself rather than this document:
+
+- SQL schema DDL: `api/src/db/schema.sql` and `app/src/db/schema.sql`
+- Seed script: `api/src/db/seed.ts`
+- Database reset: `api/src/db/reset.ts` + `scripts/setup-scheduler.sh`
+- Rate limiting: `api/src/ops/rate-limit.ts`
+- XState lifecycle: `api/src/services/lifecycle.ts`
+- CORS configuration: `api/src/server.ts`
+- Envelope viewer: `app/src/client/envelope.ts` + `app/src/client/ui.ts`
+- Agent discovery: `app/src/pages.ts` (meta tags, headers, well-known redirect)
+- Auth handlers: `api/src/auth/handlers.ts`
+- Analytics: `api/src/services/analytics.ts`
+- Tests: 99 API tests (9 files) + 34 App tests (2 files) = 133 total
