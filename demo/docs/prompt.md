@@ -248,8 +248,7 @@ demo/
 │   └── launch.sh                      # Alternative launcher
 ├── docs/
 │   ├── prompt.md                      # This file
-│   ├── env-vars.md                    # Environment variable documentation
-│   └── design/                        # CDS design documents and concepts
+│   └── env-vars.md                    # Environment variable documentation
 ├── firebase.json                      # Firebase Hosting config (WWW + Agents targets)
 ├── docker-compose.yml                 # Docker Compose for all 4 services
 ├── index.ts                           # Root entry point
