@@ -55,9 +55,37 @@ function jsonResponse(data: unknown, status = 200): Response {
 }
 
 /**
- * Redirect to /auth with standard headers.
+ * Known AI agent User-Agent patterns.
  */
-function redirectToAuth(): Response {
+const AGENT_UA = /chatgpt|openai|gptbot|claude|anthropic|perplexity|cohere|bingbot.*ai|google-extended/i;
+
+/**
+ * Agent instructions fetched once from the agents service at startup.
+ */
+let agentInstructions = `# OpenCALL Demo Library\n\nAgent instructions: ${AGENTS_URL}\nAPI server: ${API_URL}`;
+
+fetch(AGENTS_URL).then(res => {
+  if (res.ok) return res.text();
+}).then(content => {
+  if (content) agentInstructions = content;
+}).catch(() => {
+  // Keep the fallback — agents service may not be up yet during local dev
+});
+
+/**
+ * Unauthenticated requests: agents get instructions from the agents service,
+ * humans get 302 to /auth.
+ */
+function redirectToAuth(req: Request): Response {
+  const ua = req.headers.get("User-Agent") || "";
+  if (AGENT_UA.test(ua)) {
+    return addStandardHeaders(
+      new Response(agentInstructions, {
+        status: 200,
+        headers: { "Content-Type": "text/markdown; charset=utf-8" },
+      })
+    );
+  }
   return addStandardHeaders(
     new Response(null, {
       status: 302,
@@ -67,13 +95,13 @@ function redirectToAuth(): Response {
 }
 
 /**
- * Require a valid session or redirect to /auth.
- * Returns the session if valid, or null (and the caller should return the redirect).
+ * Require a valid session or redirect.
+ * Agents get instructions from the agents service; humans go to /auth.
  */
 function requireSession(req: Request): { session: Session } | { redirect: Response } {
   const session = resolveSession(req);
   if (!session) {
-    return { redirect: redirectToAuth() };
+    return { redirect: redirectToAuth(req) };
   }
   return { session };
 }

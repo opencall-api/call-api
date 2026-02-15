@@ -38,8 +38,15 @@ if [ -z "${COOKIE_SECRET:-}" ]; then
     --secret=COOKIE_SECRET --project="${PROJECT_ID}")"
 fi
 
+# Production URLs — custom domains, not *.run.app or *.web.app
+API_URL="${API_URL:-https://api.opencall-api.com}"
+APP_URL="${APP_URL:-https://demo.opencall-api.com}"
+WWW_URL="${WWW_URL:-https://www.opencall-api.com}"
+AGENTS_URL="${AGENTS_URL:-https://agents.opencall-api.com}"
+
 echo "==> Project: ${PROJECT_ID}  Region: ${REGION}"
 echo "==> Repo root: ${REPO_ROOT}"
+echo "==> URLs: API=${API_URL} APP=${APP_URL} WWW=${WWW_URL} AGENTS=${AGENTS_URL}"
 echo ""
 
 # ---------------------------------------------------------------------------
@@ -56,19 +63,14 @@ gcloud run deploy opencall-api \
   --cpu 1 \
   --min-instances 0 \
   --max-instances 3 \
-  --set-env-vars "GCS_BUCKET=${GCS_BUCKET},GCS_PROJECT_ID=${PROJECT_ID},ADMIN_SECRET=${ADMIN_SECRET}" \
+  --set-env-vars "GCS_BUCKET=${GCS_BUCKET},GCS_PROJECT_ID=${PROJECT_ID},ADMIN_SECRET=${ADMIN_SECRET},APP_URL=${APP_URL}" \
   --quiet
 
-API_URL="$(gcloud run services describe opencall-api \
-  --project "${PROJECT_ID}" \
-  --region "${REGION}" \
-  --format 'value(status.url)')"
-
-echo "==> API deployed at: ${API_URL}"
+echo "==> API deployed"
 echo ""
 
 # ---------------------------------------------------------------------------
-# 2. Deploy App to Cloud Run (needs API_URL from step 1)
+# 2. Deploy App to Cloud Run
 # ---------------------------------------------------------------------------
 echo "--- Deploying App to Cloud Run ---"
 gcloud run deploy opencall-app \
@@ -81,25 +83,10 @@ gcloud run deploy opencall-app \
   --cpu 1 \
   --min-instances 0 \
   --max-instances 3 \
-  --set-env-vars "API_URL=${API_URL},COOKIE_SECRET=${COOKIE_SECRET},AGENTS_URL=${AGENTS_URL:-https://agents.opencall-api.com},WWW_URL=${WWW_URL:-https://www.opencall-api.com}" \
+  --set-env-vars "API_URL=${API_URL},COOKIE_SECRET=${COOKIE_SECRET},AGENTS_URL=${AGENTS_URL},WWW_URL=${WWW_URL}" \
   --quiet
 
-APP_URL="$(gcloud run services describe opencall-app \
-  --project "${PROJECT_ID}" \
-  --region "${REGION}" \
-  --format 'value(status.url)')"
-
-echo "==> App deployed at: ${APP_URL}"
-echo ""
-
-# Update API with the now-known APP_URL
-echo "--- Updating API with APP_URL ---"
-gcloud run services update opencall-api \
-  --project "${PROJECT_ID}" \
-  --region "${REGION}" \
-  --update-env-vars "APP_URL=${APP_URL}" \
-  --quiet
-
+echo "==> App deployed"
 echo ""
 
 # ---------------------------------------------------------------------------
@@ -130,6 +117,6 @@ echo " Deployment complete!"
 echo ""
 echo "  API:     ${API_URL}"
 echo "  App:     ${APP_URL}"
-echo "  WWW:     ${WWW_URL:-https://www.opencall-api.com}"
-echo "  Agents:  ${AGENTS_URL:-https://agents.opencall-api.com}"
+echo "  WWW:     ${WWW_URL}"
+echo "  Agents:  ${AGENTS_URL}"
 echo "============================================"

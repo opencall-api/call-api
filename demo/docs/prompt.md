@@ -9,7 +9,7 @@ The demo is split across four services (see **Environments** section for local v
 | Service | Purpose                                       | Remote domain             |
 | ------- | --------------------------------------------- | ------------------------- |
 | WWW     | Brochure/marketing site — explains the spec   | `www.opencall-api.com`    |
-| App     | Demo app — interactive library dashboard      | `app.opencall-api.com`    |
+| App     | Demo app — interactive library dashboard      | `demo.opencall-api.com`    |
 | API     | OpenCALL API server — the spec implementation | `api.opencall-api.com`    |
 | Agents  | Agent instructions — capability declaration   | `agents.opencall-api.com` |
 
@@ -17,7 +17,7 @@ Four audiences:
 
 1. **Visitors** to `www.opencall-api.com` — learn what OpenCALL is, click "Try the Demo" (CTA) to go to the app.
 2. **Developers** using `api.opencall-api.com` directly — hit the API with curl/Postman, read `/.well-known/ops`, see the lifecycle in action.
-3. **Demo users** on `app.opencall-api.com` — interactive dashboard that calls the API and **shows the raw request/response envelopes** alongside the UI results, so visitors can see exactly how the protocol works.
+3. **Demo users** on `demo.opencall-api.com` — interactive dashboard that calls the API and **shows the raw request/response envelopes** alongside the UI results, so visitors can see exactly how the protocol works.
 4. **AI agents** (Claude, GPT, etc.) — directed to `agents.opencall-api.com` via standard mechanisms, where they find plain-text instructions for authenticating with a library card number, calling the API, and discovering operations. The agent can then autonomously browse the catalog, return overdue items, reserve items, and encounter domain errors — all through the same API the humans use.
 
 ### API endpoints (`api.opencall-api.com`)
@@ -30,7 +30,7 @@ Four audiences:
 - `POST /auth` — mint a demo token for human users (returns token + metadata)
 - `POST /auth/agent` — mint an agent token using a library card number (returns token with fixed agent scopes)
 
-### App endpoints (`app.opencall-api.com`)
+### App endpoints (`demo.opencall-api.com`)
 
 - `GET /` — dashboard (requires auth, redirects to `/auth` if no session)
 - `GET /auth` — auth page (pick username, select scopes, mint token)
@@ -61,7 +61,7 @@ Start locally with `bun run dev` in each service directory (or a root-level scri
 | Service | Remote URL                        | Hosting          |
 | ------- | --------------------------------- | ---------------- |
 | API     | `https://api.opencall-api.com`    | Cloud Run        |
-| App     | `https://app.opencall-api.com`    | Cloud Run        |
+| App     | `https://demo.opencall-api.com`    | Cloud Run        |
 | WWW     | `https://www.opencall-api.com`    | Firebase Hosting |
 | Agents  | `https://agents.opencall-api.com` | Firebase Hosting |
 
@@ -72,7 +72,7 @@ Every service that references another service uses environment variables to reso
 | Variable     | Used by     | Local default           | Remote value                      |
 | ------------ | ----------- | ----------------------- | --------------------------------- |
 | `API_URL`    | App, Agents | `http://localhost:3000` | `https://api.opencall-api.com`    |
-| `APP_URL`    | WWW, API    | `http://localhost:8000` | `https://app.opencall-api.com`    |
+| `APP_URL`    | WWW, API    | `http://localhost:8000` | `https://demo.opencall-api.com`    |
 | `WWW_URL`    | App         | `http://localhost:8080` | `https://www.opencall-api.com`    |
 | `AGENTS_URL` | App         | `http://localhost:8888` | `https://agents.opencall-api.com` |
 
@@ -108,7 +108,7 @@ The agent instructions markdown (`agents/index.md`) is a **template** — at bui
 | Database           | **SQLite via `bun:sqlite`**            | Catalog, operation state, auth tokens, sessions. Single file, zero infra |
 | Object storage     | **Google Cloud Storage**               | Cover images, generated reports. Free tier: 5 GB                         |
 | Hosting (API)      | **Google Cloud Run**                   | `api.opencall-api.com` — scale to zero, free tier: 2M req/month          |
-| Hosting (App)      | **Google Cloud Run**                   | `app.opencall-api.com` — serves HTML dashboard + handles sessions        |
+| Hosting (App)      | **Google Cloud Run**                   | `demo.opencall-api.com` — serves HTML dashboard + handles sessions        |
 | Hosting (Brochure) | **Firebase Hosting**                   | `www.opencall-api.com` — static site, free tier: 1 GB + 10 GB            |
 | Hosting (Agent)    | **Firebase Hosting**                   | `agents.opencall-api.com` — static markdown, same free tier              |
 | Seed data          | **Open Library API** (CC0) + **faker** | Real book metadata + synthetic lending history                           |
@@ -176,7 +176,7 @@ demo/
 │   ├── package.json
 │   └── tsconfig.json
 │
-├── app/                               # === app.opencall-api.com ===
+├── app/                               # === demo.opencall-api.com ===
 │   ├── src/
 │   │   ├── server.ts                  # Bun.serve() entry point — serves HTML + static files
 │   │   ├── session.ts                 # Session store (SQLite) + cookie handling
@@ -948,7 +948,7 @@ Agent tokens are always prefixed with `agent_` (vs `demo_` for human tokens). Ag
 - Valid token, insufficient scopes → `403` with canonical error envelope listing the missing scopes
 - Per spec: HTTP binding uses `Authorization` header, not envelope `auth` block
 
-### App auth (`app.opencall-api.com`)
+### App auth (`demo.opencall-api.com`)
 
 The app is the human-facing frontend. It wraps the API token in a server-side session so the browser doesn't need to manage bearer tokens directly.
 
@@ -1231,7 +1231,7 @@ A static single-page site hosted on Firebase Hosting. This is the marketing/expl
 
 ---
 
-## Demo app: `app.opencall-api.com`
+## Demo app: `demo.opencall-api.com`
 
 The app is the interactive frontend that **demonstrates the OpenCALL protocol in action**. It's not just a UI over the library catalog — it's a teaching tool that shows exactly what's happening on the wire.
 
@@ -1752,7 +1752,7 @@ gcloud run deploy opencall-api \
   --source ./api \
   --region us-central1 \
   --allow-unauthenticated \
-  --set-env-vars GCS_BUCKET=opencall-demo-library,APP_URL=https://app.opencall-api.com
+  --set-env-vars GCS_BUCKET=opencall-demo-library,APP_URL=https://demo.opencall-api.com
 
 # App server (Cloud Run)
 gcloud run deploy opencall-app \
@@ -1762,7 +1762,7 @@ gcloud run deploy opencall-app \
   --set-env-vars API_URL=https://api.opencall-api.com,AGENTS_URL=https://agents.opencall-api.com,WWW_URL=https://www.opencall-api.com
 
 # Brochure site (Firebase) — APP_URL baked at build time
-APP_URL=https://app.opencall-api.com bun run build
+APP_URL=https://demo.opencall-api.com bun run build
 cd www && firebase deploy --only hosting
 
 # Agent instructions (Firebase) — API_URL baked at build time

@@ -1,4 +1,25 @@
 
+## Services
+
+This demo has 4 services, all Bun servers:
+
+| Service | Directory | Entry point | Local port | Production |
+|---------|-----------|-------------|------------|------------|
+| API | `api/` | `src/server.ts` | 3000 | Cloud Run (`api.opencall-api.com`) |
+| App | `app/` | `src/server.ts` | 8000 | Cloud Run (`demo.opencall-api.com`) |
+| WWW | `www/` | `src/server.ts` | 8080 | Firebase Hosting (`opencall-api.com`) |
+| Agents | `agents/` | `src/server.ts` | 8888 | Firebase Hosting (`agents.opencall-api.com`) |
+
+- **API** — OpenCALL API server. Handles `POST /call` dispatch, token auth, operation registry, async polling, chunked retrieval. SQLite database.
+- **App** — Human-facing web app. Server-rendered HTML, proxies auth to API. Client JS is TypeScript modules in `app/src/client/`, bundled via `bun run build` to `app/public/app.js`.
+- **WWW** — Static brochure site. Source uses `{{APP_URL}}`/`{{API_URL}}` placeholders, built via `bash www/build.sh`.
+- **Agents** — Serves Markdown instruction files for AI agent discovery.
+
+Start all locally: `bash scripts/run-local.sh`
+Deploy all: `bash scripts/deploy.sh`
+
+## Bun
+
 Default to using Bun instead of Node.js.
 
 - Use `bun <file>` instead of `node <file>` or `ts-node <file>`

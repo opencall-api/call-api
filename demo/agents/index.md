@@ -1,22 +1,23 @@
 # OpenCALL Demo Library — AI Agent Access
 
-This is a public lending library. It uses the OpenCALL API specification.
+This is a public lending library. It uses the OpenCALL API specification (for demonstration purposes).
 
-## Authentication
+You can interact with this library directly using HTTP requests.
+You do not need a browser. You do not need to scrape HTML.
+Make standard HTTP/cURL requests to **{{API_URL}}** and you will receive JSON responses.
 
-You need the patron's library card number to act on their behalf. Ask them for it —
-it's a 10-digit number in the format `XXXX-XXXX-XX`.
+## Discovery — no authentication required
 
-    POST {{API_URL}}/auth/agent
-    Content-Type: application/json
+Fetch the operation registry to see everything the API supports:
 
-    { "cardNumber": "<patron-card-number>" }
+    GET {{API_URL}}/.well-known/ops
 
-The response includes a `token`. Use it as a bearer token on all subsequent requests:
+This returns a JSON registry of every operation, including argument schemas and return types.
 
-    Authorization: Bearer <token>
+This registry is the authoritative source for what you can do, what arguments each
+operation accepts, and what it returns. Start here.
 
-## API
+## Using the API
 
 All operations use a single endpoint:
 
@@ -29,11 +30,18 @@ All operations use a single endpoint:
 Responses use a standard envelope with a `state` field (`complete`, `accepted`,
 `pending`, or `error`). Read the `state` to determine what happened.
 
-## Discovery
+To use the API you must first obtain a token to act on behalf of the user.
 
-Discover all available operations, their schemas, and constraints:
+## Authentication
 
-    GET {{API_URL}}/.well-known/ops
+You need the patron's library card number to act on their behalf. Ask them for it —
+it's a 10-character number in the format `XXXX-XXXX-AA` Where X is a digit [0-9] and AA a two letter suffix.
 
-This registry is the authoritative source for what you can do, what arguments each
-operation accepts, and what it returns. Start here.
+    POST {{API_URL}}/auth/agent
+    Content-Type: application/json
+
+    { "cardNumber": "<patron-card-number>" }
+
+The response includes a `token`. Use it as a bearer token on all subsequent requests:
+
+    Authorization: Bearer <token>

@@ -4,7 +4,7 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>OpenCALL &mdash; One Endpoint. Every Operation.</title>
-  <meta name="description" content="OpenCALL is a single-endpoint, operation-based API protocol that replaces sprawling REST surfaces with one POST /call endpoint.">
+  <meta name="description" content="OpenCALL is a single-endpoint, operation-based API specification that replaces sprawling REST surfaces with one POST /call endpoint.">
   <link rel="stylesheet" href="style.css">
 </head>
 <body>
@@ -17,6 +17,7 @@
         <a href="#answer">Answer</a>
         <a href="#try-it">Why Now</a>
         <a href="#compare">Compare</a>
+        <a href="#reality">Real World</a>
         <a href="#spec">Spec</a>
         <button id="theme-toggle" type="button" aria-label="Toggle dark mode" title="Toggle dark mode">
           <span class="icon-light">&#9790;</span>
@@ -32,7 +33,7 @@
     <section class="hero" id="hero">
       <h1>OpenCALL &mdash; Command And Lifecycle Layer</h1>
       <p class="hero-description">
-        A single-endpoint, operation-based API protocol.
+        A single-endpoint, operation-based API specification.
         Instead of dozens of routes, verbs, and status codes, every request is a
         <code>POST&nbsp;/call</code> carrying a typed operation name and its arguments.
         The server responds with a predictable envelope&mdash;every time.
@@ -266,11 +267,74 @@ Authorization: Bearer &lt;token&gt;
       </div>
     </section>
 
+    <!-- Reality Check -->
+    <section id="reality">
+      <h2>Agents in the Real World</h2>
+      <p>
+        We built a working demo library with full agent instructions, gave it a
+        real domain, and asked ChatGPT and Claude to reserve Fahrenheit&nbsp;451.
+        The results tell you exactly where the industry is right now&mdash;and
+        where it&rsquo;s going fast.
+      </p>
+
+      <div class="card-grid">
+        <div class="card">
+          <h3>SDK agents work today</h3>
+          <p>
+            Agents built on frameworks like the Claude Code SDK can make HTTP requests,
+            hold tokens, and call APIs directly. They read the OpenCALL instructions,
+            authenticated, searched the catalog, and reserved a book&mdash;exactly as
+            designed. The protocol works. The new generation of agentic tools is
+            already here and growing rapidly.
+          </p>
+        </div>
+        <div class="card">
+          <h3>Browser agents can&rsquo;t POST&mdash;yet</h3>
+          <p>
+            Chat-based agents like ChatGPT and Claude.ai have browsing tools that
+            are read-only. They understood the instructions perfectly but couldn&rsquo;t
+            execute them&mdash;no POST requests, no token handling, no API calls.
+            This is a temporary limitation of browser-sandboxed agents, not a
+            protocol problem. It&rsquo;s already being solved by the SDK-based agents
+            that developers are building right now.
+          </p>
+        </div>
+        <div class="card">
+          <h3>Safety rails need nuance</h3>
+          <p>
+            ChatGPT refused to authenticate on behalf of a user&mdash;even to a demo
+            library with a fake card number. &ldquo;Acting on behalf of the user&rdquo;
+            triggered safety guardrails that made no distinction between a banking
+            API and a toy library. The guardrails are well-intentioned but blunt.
+            They need a way to know when the user has genuinely said &ldquo;go ahead.&rdquo;
+          </p>
+        </div>
+        <div class="card">
+          <h3>Mandates: the missing trust layer</h3>
+          <p>
+            The answer is a <strong>mandate</strong>&mdash;a signed, verifiable payload
+            that says &ldquo;this user authorises this agent to act on their behalf,
+            with these scopes, until this time.&rdquo; Not a session cookie. Not a bearer
+            token someone could have scraped. A cryptographic proof of intent that
+            travels with the request. A2A protocols are heading this way, and
+            OpenCALL&rsquo;s mandate envelope is next on the roadmap.
+          </p>
+        </div>
+      </div>
+
+      <p>
+        The protocol works. The API works. SDK-based agents are using it today.
+        The next frontier is the trust layer&mdash;giving browser-based agents a
+        verifiable mandate so they can act with confidence, not just caution.
+        Things are moving fast, and we&rsquo;re building for what&rsquo;s coming.
+      </p>
+    </section>
+
     <!-- Read the Spec -->
     <section id="spec">
       <h2>Read the Spec</h2>
       <p>
-        The full OpenCALL protocol specification covers the envelope format,
+        The full OpenCALL specification covers the envelope format,
         operation naming conventions, error taxonomy, authentication model,
         introspection, async patterns, and more.
       </p>
