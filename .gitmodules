@@ -1,0 +1,3 @@
+[submodule "tooling/typescript"]
+	path = tooling/typescript
+	url = git@github.com:dbryar/call-tools-typescript.git
