@@ -56,10 +56,10 @@ sleep 1
 
 # Start WWW server
 echo -e "${YELLOW}Starting WWW server on port $WWW_PORT...${NC}"
-cd www
+cd ../site
 PORT=$WWW_PORT APP_URL=$APP_URL API_URL=$API_URL bun run src/server.ts &
 WWW_PID=$!
-cd ..
+cd "$SCRIPT_DIR/.."
 
 sleep 1
 
