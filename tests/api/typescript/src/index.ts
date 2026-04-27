@@ -7,33 +7,6 @@ import { getMedia, resetMedia } from "./media";
 import { validateEnvelope } from "@opencall/server";
 import type { ServerWebSocket } from "bun";
 
-/**
- * Normalise a raw parsed envelope object before handing it to validateEnvelope.
- *
- * The @opencall/types schema requires ctx.requestId to be a UUID when ctx is
- * present, but many callers (including the test suite) send ctx:{} or ctx with
- * only sessionId.  We normalise here so validateEnvelope sees a valid shape:
- *   - ctx:{} → ctx:undefined (nothing meaningful was provided)
- *   - ctx without requestId → inject a generated UUID so the rest of ctx is preserved
- */
-function normaliseCtx(raw: unknown): unknown {
-  if (!raw || typeof raw !== "object" || Array.isArray(raw)) return raw;
-  const env = raw as Record<string, unknown>;
-  if (!env.ctx || typeof env.ctx !== "object" || Array.isArray(env.ctx)) return raw;
-  const ctx = env.ctx as Record<string, unknown>;
-  const keys = Object.keys(ctx);
-  if (keys.length === 0) {
-    // empty ctx — drop it entirely
-    const { ctx: _dropped, ...rest } = env;
-    return rest;
-  }
-  if (!ctx.requestId) {
-    // ctx has fields (e.g. sessionId) but no requestId — inject one
-    return { ...env, ctx: { ...ctx, requestId: crypto.randomUUID() } };
-  }
-  return raw;
-}
-
 export function createServer(port: number = 3000) {
   resetStorage();
   resetTokenStore();
@@ -190,7 +163,7 @@ export function createServer(port: number = 3000) {
           }
 
           const authHeader = req.headers.get("authorization");
-          const validated = validateEnvelope(normaliseCtx(envelope));
+          const validated = validateEnvelope(envelope);
           if (!validated.ok) {
             return Response.json(validated.error.body, { status: validated.error.status });
           }
