@@ -1,0 +1,57 @@
+name: Deploy site to Cloudflare Pages
+
+# NOTE: push trigger is intentionally disabled. Until the
+# CLOUDFLARE_API_TOKEN and CLOUDFLARE_ACCOUNT_ID secrets are
+# configured and the Pages project `opencall-api-site` exists,
+# this workflow only runs on manual dispatch. To re-enable
+# automatic deploys, restore the `push` block below the
+# `workflow_dispatch:` line:
+#
+#   push:
+#     branches: [main]
+#     paths:
+#       - "site/**"
+#       - "specification.md"
+#       - "client.md"
+#       - "comparisons.md"
+#       - ".github/workflows/deploy-site.yml"
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  deployments: write
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Checkout repo (with submodules)
+        uses: actions/checkout@v4
+        with:
+          submodules: recursive
+
+      - name: Setup Bun
+        uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: latest
+
+      - name: Install site dependencies
+        run: bun install --cwd site
+
+      - name: Run site tests
+        run: bun test --cwd site
+
+      - name: Build site
+        env:
+          APP_URL: https://demo.opencall-api.com
+          API_URL: https://api.opencall-api.com
+        run: bun run --cwd site build
+
+      - name: Deploy to Cloudflare Pages
+        uses: cloudflare/wrangler-action@v3
+        with:
+          apiToken: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          accountId: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+          command: pages deploy site/dist --project-name=opencall-api-site --branch=main

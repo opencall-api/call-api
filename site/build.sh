@@ -28,4 +28,8 @@ if [ -d "${SCRIPT_DIR}/assets" ]; then
   cp -r "${SCRIPT_DIR}/assets" "${DIST}/assets"
 fi
 
+# Cloudflare Pages config
+cp "${SCRIPT_DIR}/_headers" "${DIST}/_headers"
+cp "${SCRIPT_DIR}/_redirects" "${DIST}/_redirects"
+
 echo "==> www site built to ${DIST}"

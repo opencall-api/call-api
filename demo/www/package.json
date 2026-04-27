@@ -1,8 +1,0 @@
-{
-  "name": "@opencall-demo/www",
-  "private": true,
-  "scripts": {
-    "dev": "bun --hot src/server.ts",
-    "start": "bun src/server.ts"
-  }
-}
