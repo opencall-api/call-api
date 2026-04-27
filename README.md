@@ -1,3 +1,5 @@
+> **Canonical docs:** [https://opencall-api.com/spec](https://opencall-api.com/spec). GitHub blocks most non-Copilot bots; the canonical site serves the same docs as rendered HTML and as raw markdown for agents.
+
 # Goodbye REST. Hello OpenCALL.
 
 **OpenCALL** — Open Command And Lifecycle Layer — is an API specification designed for a world where humans and AI agents are equal consumers of your services.
