@@ -12,7 +12,7 @@
 
 1. [ ] Make the OpenCALL spec repo a true public reference, not a private sandbox.
 2. [x] Claim and operate the `@opencall` org on npm, with provenance-attested releases.
-3. [ ] Ship `@opencall/server` (server toolkit) and `@opencall/client` (client + codegen) as the canonical TypeScript packages.
+3. [ ] Ship `@opencall/types` (canonical Zod schemas + types), `@opencall/server` (server toolkit), and `@opencall/client` (client + codegen) as the canonical TypeScript packages.
 4. [ ] Extend the same server/client split to Python, Go, and Java with idiomatic packaging in each registry.
 5. [ ] Anchor every SDK against the existing language-agnostic test suite plus a new SDK-level conformance suite.
 
@@ -27,15 +27,17 @@
 
 ## 2. Architectural Decisions
 
-### 2.1 Two packages per language: server and client
+### 2.1 Three packages per language: types (canonical contract), server, client
 
-| Concern             | Server package                                                                                                      | Client package                                                                                  |
-| ------------------- | ------------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------- |
-| Audience            | Teams implementing OpenCALL APIs                                                                                    | Teams calling OpenCALL APIs (apps, agents, integrations)                                        |
-| Surface             | Envelope types, error classes, registry builder, dispatcher helpers, language-native annotation parsing, validation | One `call()` function, codegen reading `/.well-known/ops`, response/state handling, type output |
-| Runtime dependency? | Yes — runs in the API process                                                                                       | Optional at runtime (codegen output is freestanding); useful as a dev dependency                |
+| Concern             | Types package                                                                                              | Server package                                                                                                      | Client package                                                                                  |
+| ------------------- | ---------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------- |
+| Audience            | Both server and client implementers; consumers who want the contract without committing to either side    | Teams implementing OpenCALL APIs                                                                                    | Teams calling OpenCALL APIs (apps, agents, integrations)                                        |
+| Surface             | Zod schemas (the canonical runtime contract) and `z.infer`-derived types for the envelope, registry, errors | Registry builder, dispatcher helpers, language-native annotation parsing, validation. Imports schemas + types from the types package | `call()` function, codegen reading `/.well-known/ops`, polling/streaming/chunked helpers. Imports types (and optionally schemas) from the types package |
+| Runtime dependency? | Yes (Zod, ~30KB gzipped). Both server and client depend on it.                                            | Yes — runs in the API process                                                                                       | Yes — runs in the calling app/agent. Zod allows defensive response parsing.                     |
 
-The client is intentionally trivial — a single function that wraps an envelope and POSTs it (see [client.md](../../../client.md)). The package's value is the codegen + typed wrappers, not runtime weight.
+**Why a separate types package, not a two-package split:** the runtime contract is the Zod schema, not a hand-written TypeScript type. Schemas validate at the wire boundary; types are derived (`type RequestEnvelope = z.infer<typeof RequestEnvelopeSchema>`). Whoever owns the schemas owns the source of truth. Putting that ownership in either server or client makes the other consumer second-class with type-drift risk. Carving it into its own package (`@opencall/types`) gives both consumers a peer relationship to the contract — neither package "owns" the other.
+
+**The client.md "thinnest client" principle is about API surface, not bundle bytes.** Re-reading client.md: "It is not a thin wrapper over a complex protocol. It is the direct expression of intent over a simple protocol. The thinness is the point." That's about not having class hierarchies, verb mappings, or path templating — not about avoiding a 30KB Zod runtime. Zod in the client buys defensive response parsing for free, which is a worthwhile trade against a small bundle increase.
 
 ### 2.2 Repo layout: per-language repos as submodules
 
@@ -53,23 +55,37 @@ call-api/                            ← public spec repo (github.com/dbryar/cal
   demo/
 ```
 
-Each tooling repo contains both the server and client packages for that language (single repo, two artifacts). Rationale:
+Each tooling repo is a monorepo (Bun workspaces for TypeScript; equivalent for other languages where idiomatic) containing the three packages for that language: `types`, `server`, `client`. For ecosystems where a separate types artifact is non-idiomatic (Go's flat package per directory, Java's JAR-per-module), the layout collapses to two artifacts with types co-located in the package that hosts the canonical schema definitions.
+
+Rationale for one repo per language:
 
 - One CI config per language; each ecosystem has its own quirks (Maven signing, Go modules, wheel building).
 - Submodule pinning encodes "spec X tested against tooling Y" in git.
 - Independent issue trackers per language for community contribution.
 - Go modules use repo path as import path; per-language repos avoid awkward sub-paths in unrelated languages.
 
+For TypeScript specifically, the layout inside the submodule is:
+
+```
+ts-tools/                  ← github.com/opencall-api/ts-tools (the submodule)
+├── package.json           ← workspace root
+├── packages/
+│   ├── types/             → @opencall/types   (Zod schemas + z.infer'd types)
+│   ├── server/            → @opencall/server  (registry builder, dispatcher; deps on @opencall/types)
+│   └── client/            → @opencall/client  (call(), polling, streaming, codegen; deps on @opencall/types)
+└── ...
+```
+
 ### 2.3 Registry & naming per ecosystem
 
-| Language   | Registry         | Server package                               | Client package                               | Notes                                                                                                            |
-| ---------- | ---------------- | -------------------------------------------- | -------------------------------------------- | ---------------------------------------------------------------------------------------------------------------- |
-| TypeScript | npm              | `@opencall/server`                           | `@opencall/client`                           | Org `@opencall` claimed, 2FA enforced for all members                                                            |
-| Python     | PyPI             | `opencall-server`                            | `opencall-client`                            | PyPI is flat; first-come-first-served. Names to be reserved on first publish.                                    |
-| Go         | proxy.golang.org | `github.com/opencall-api/opencall-go/server` | `github.com/opencall-api/opencall-go/client` | Single Go module with sub-packages — one `go get`, two imports.                                                  |
-| Java       | Maven Central    | `com.opencall-api:opencall-server`           | `com.opencall-api:opencall-client`           | Group ID derived from `opencall-api.com`; verified via Cloudflare DNS TXT record on the Sonatype Central Portal. |
+| Language   | Registry         | Types package                                | Server package                               | Client package                               | Notes                                                                                                            |
+| ---------- | ---------------- | -------------------------------------------- | -------------------------------------------- | -------------------------------------------- | ---------------------------------------------------------------------------------------------------------------- |
+| TypeScript | npm              | `@opencall/types`                            | `@opencall/server`                           | `@opencall/client`                           | Org `@opencall` claimed, 2FA enforced for all members. All three under the same scope.                            |
+| Python     | PyPI             | `opencall-types`                             | `opencall-server`                            | `opencall-client`                            | PyPI is flat; first-come-first-served. Reserve all three names on first publish.                                  |
+| Go         | proxy.golang.org | `github.com/opencall-api/opencall-go/types` (collapsed into server if no separate consumer emerges) | `github.com/opencall-api/opencall-go/server` | `github.com/opencall-api/opencall-go/client` | Single Go module. Whether a third sub-package is worth it is decided per language at Phase 2/3 time. |
+| Java       | Maven Central    | `com.opencall-api:opencall-types` (or collapsed; decided at Phase 4) | `com.opencall-api:opencall-server`           | `com.opencall-api:opencall-client`           | Group ID derived from `opencall-api.com`; verified via Cloudflare DNS TXT record on the Sonatype Central Portal. |
 
-The never-published `@opencall/ts-tools` name is retired in favor of the server/client split. The codebase that lives at `tooling/typescript/` becomes the `@opencall/server` package; client + codegen is new code.
+The never-published `@opencall/ts-tools` name is retired. The codebase currently at `tooling/typescript/src/` is split during Phase 1a — envelope schemas, error classes, registry response types, and inferred TypeScript types extracted to `packages/types/` (becomes `@opencall/types`); the rest (registry builder, dispatcher, JSDoc parser, validate helpers) stays in `packages/server/` (becomes `@opencall/server`). The client package (`@opencall/client`) is net-new code added in Phase 1b.
 
 ### 2.4 Versioning policy
 
@@ -183,28 +199,54 @@ GitHub Actions workflow on push to `main`: build the site (template substitution
   - GitHub Actions workflow `.github/workflows/deploy-site.yml` triggered on push to `main`: build site, deploy to Cloudflare Pages via scoped API token in repo secrets.
   - Retire the Firebase `target: www` deploy only. The `agents`, `app`, and other Firebase targets in `demo/firebase.json` stay on Firebase for now; their migration is a separate, later effort outside this strategy doc.
 
-### Phase 1 — Ship `@opencall/server` v0.2.0 + `@opencall/client` v0.1.0
+### Phase 1a — Ship `@opencall/types@0.1.0` + `@opencall/server@0.2.0`
 
-The TS submodule needs both:
+These ship as one coordinated release wave from the `opencall-api/ts-tools` monorepo. Types is published first by a moment so server can resolve its dependency on `@opencall/types@^0.1.0` at install time.
 
-**Server (`@opencall/server`):** the existing `tooling/typescript/` codebase, renamed in `package.json`, with the seven `requested_changes.md` items resolved (envelope `meta`/`auth`/`timeoutMs`, `BackendUnavailableError`, `isDbConnectionError`, `safeHandlerCall` HTTP 503 handling, `requiresAuth` on `OperationModule`, `buildRegistryFromModules` for edge runtimes).
+**Pre-work — restructure into a Bun monorepo:**
 
-**Client (`@opencall/client`):** new package containing:
+The existing flat layout (`tooling/typescript/src/`) becomes:
 
-- `call()` function (per `client.md`).
-- Polling helper for async responses.
-- Stream subscription helper.
+```
+ts-tools/
+├── package.json          ← workspace root: { "workspaces": ["packages/*"] }
+├── packages/
+│   ├── types/
+│   │   ├── package.json  ← @opencall/types
+│   │   └── src/          ← envelope.ts, errors.ts, types.ts (canonical schema definitions)
+│   └── server/
+│       ├── package.json  ← @opencall/server, deps: { "@opencall/types": "workspace:^0.1.0" }
+│       └── src/          ← jsdoc.ts, registry.ts, validate.ts, codegen.ts, cli/
+└── .github/workflows/release.yml
+```
+
+**`@opencall/types@0.1.0`:** Zod schemas for the request and response envelopes, registry response shape, and error structures. TypeScript types via `z.infer`. Includes the new fields from `requested_changes.md` (envelope `meta`/`auth`/`timeoutMs` in ctx, `retryAfterMs`, `expiresAt`) since those are contract-level changes.
+
+**`@opencall/server@0.2.0`:** the existing `tooling/typescript/src/` codebase (registry builder, JSDoc parser, dispatcher helpers, validate helpers, codegen) refactored to import schemas/types from `@opencall/types`. Adds the rest of the `requested_changes.md` items that are server-only behavior: `BackendUnavailableError`, `isDbConnectionError`, `safeHandlerCall` HTTP 503 handling, `requiresAuth` on `OperationModule`, `buildRegistryFromModules` for edge runtimes.
+
+**Release plumbing (one-time, in `opencall-api/ts-tools`):**
+
+1. Bun workspace root with the two packages laid out above.
+2. Branch protection on `main` in `opencall-api/ts-tools` (separate from spec repo's branch protection).
+3. `.github/workflows/release.yml` triggers on tags matching `types-v*.*.*` and `server-v*.*.*`, builds the matching workspace package, and runs `npm publish --provenance --access public` via OIDC. Per-package tags allow independent versioning.
+4. npm trusted publisher configured at the npm scope level: GitHub org `opencall-api`, repo `ts-tools`, workflow `release.yml`, npm scope `@opencall`.
+5. READMEs for each package, polished for the npm package page (each renders standalone).
+6. CHANGELOG.md per package; first publish for both packages is manual (to validate the pipeline); subsequent publishes via tag push only.
+
+### Phase 1b — Ship `@opencall/client@0.1.0`
+
+Adds the third workspace package. Net-new code; depends on `@opencall/types@^0.1.0` from the previous phase.
+
+**`@opencall/client@0.1.0`:** new `packages/client/` workspace. Contains:
+
+- `call()` function (per `client.md`) — the thin envelope-and-fetch primitive.
+- `callAndWait()` polling helper for async responses.
+- Stream subscription helper for the `state: "streaming"` response shape.
 - Chunked retrieval helper with checksum chain validation.
-- A `bin` codegen entry point (`opencall-codegen`) that reads a registry URL or JSON file and emits a `.d.ts` plus optional typed wrappers.
+- `bin` codegen entry point (`opencall-codegen`) that reads a registry URL or JSON file and emits a `.d.ts` plus optional typed wrappers.
+- Optional defensive parsing: response envelopes parsed via `ResponseEnvelopeSchema` from `@opencall/types` for safety against malformed servers.
 
-**Release plumbing (one-time per repo):**
-
-1. `opencall-api/ts-tools` exists (via Phase 0 transfer + rename of `dbryar/call-tools-typescript`); `.gitmodules` in the spec repo updated to the canonical URL.
-2. Branch protection on `main`.
-3. `.github/workflows/release.yml` triggers on `v*.*.*` tag push, runs build + tests, then `npm publish --provenance --access public` via OIDC.
-4. npm trusted publisher configured: GitHub org `opencall-api`, repo `ts-tools`, workflow `release.yml`, npm scope `@opencall`.
-5. README polished for the npm package page (it renders standalone, separate from the spec repo README).
-6. CHANGELOG seeded; first manual publish to validate the pipeline; subsequent publishes via tag push only.
+Same release plumbing as Phase 1a (already in place); tag is `client-v0.1.0`.
 
 ### Phase 2 — Python (`opencall-server`, `opencall-client`)
 
@@ -260,15 +302,15 @@ The TS submodule needs both:
 - ✅ Repo layout — per-language submodules.
 - ✅ Maven group ID — `com.opencall-api`.
 - ✅ Versioning — independent SemVer per package; spec compatibility declared via `opencallSpec` metadata; operation `vN:` prefixes are unrelated to tool versions.
-- ✅ Server + client split — yes, two packages per language.
+- ✅ Package split — three packages per language (where idiomatic): `types` (canonical Zod-schema contract + inferred types), `server`, `client`. Both server and client depend on `types`. For ecosystems where a third artifact is non-idiomatic, the split collapses to two with types co-located in the canonical-schema package.
 - ✅ Conformance — extend `tests/` with SDK-level suite; rewrite reference servers to use SDKs.
 - ✅ CI/release — GitHub Actions OIDC trusted publishing on registries that support it (npm and PyPI today). Maven Central uses the Central Portal user token via the `central-publishing-maven-plugin`. Go modules need no registry credential beyond a tagged repo.
 - ✅ Canonical docs hosting — `https://opencall-api.com` on Cloudflare Pages, bots permitted, raw markdown served alongside rendered HTML; site source moves into the spec repo at `site/`. All package metadata and READMEs point to the canonical URL, not GitHub.
 
 ## 6. Success Criteria
 
-1. `npm install @opencall/server` and `npm install @opencall/client` resolve to public, provenance-attested packages built from the `opencall-api` GitHub org.
-2. A new TypeScript developer can write an OpenCALL server using `@opencall/server` and a client using `@opencall/client`, with no code from the spec repo copy-pasted in.
+1. `npm install @opencall/types`, `npm install @opencall/server`, and `npm install @opencall/client` resolve to public, provenance-attested packages built from the `opencall-api` GitHub org. Both `@opencall/server` and `@opencall/client` declare a runtime dependency on `@opencall/types` at the same major version.
+2. A new TypeScript developer can write an OpenCALL server using `@opencall/server` and a client using `@opencall/client`, with no code from the spec repo copy-pasted in. Both consumers see identical envelope types because they resolve through the shared `@opencall/types` package.
 3. The same is true for Python, Go, and Java developers, each within their own ecosystem's idioms.
 4. Every published artifact under `@opencall` (npm), `opencall-*` (PyPI), `github.com/opencall-api/*` (Go), and `com.opencall-api:*` (Maven) is reachable from a single page in the spec repo's README.
 5. The language-agnostic test suite at `tests/` continues to pass against every language's reference server, including after the reference servers are rewritten on top of the SDKs.
