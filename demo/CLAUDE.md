@@ -1,20 +1,20 @@
 ## Services
 
-This demo has 4 services, all Bun servers:
+This demo has 3 Bun-server services. The WWW brochure that used to live here at `demo/www/` was moved to `site/` at the repo root; it is no longer a "demo service" but is still started locally alongside the demo by `scripts/run-local.sh` for convenience.
 
 | Service | Directory | Entry point     | Local port | Production                                   |
 | ------- | --------- | --------------- | ---------- | -------------------------------------------- |
 | API     | `api/`    | `src/server.ts` | 3000       | Cloud Run (`api.opencall-api.com`)           |
 | App     | `app/`    | `src/server.ts` | 8000       | Cloud Run (`demo.opencall-api.com`)          |
-| WWW     | `www/`    | `src/server.ts` | 8080       | Firebase Hosting (`www.opencall-api.com`)    |
 | Agents  | `agents/` | `src/server.ts` | 8888       | Firebase Hosting (`agents.opencall-api.com`) |
 
 - **API** — OpenCALL API server. Handles `POST /call` dispatch, token auth, operation registry, async polling, chunked retrieval. SQLite database.
-- **App** — Human-facing web app. Server-rendered HTML, proxies auth to API. Client JS is TypeScript modules in `app/src/client/`, bundled via `bun run build` to `app/public/app.js`.
-- **WWW** — Static brochure site. Source uses `{{APP_URL}}`/`{{API_URL}}` placeholders, built via `bash www/build.sh`.
-- **Agents** — Serves Markdown instruction files for AI agent discovery.
+- **App** — Human-facing web app. The interactive demo at `demo.opencall-api.com` (payload inspector, operation explorer). Server-rendered HTML, proxies auth to API. Client JS is TypeScript modules in `app/src/client/`, bundled via `bun run build` to `app/public/app.js`.
+- **Agents** — Serves Markdown instruction files for AI agent discovery at `agents.opencall-api.com`.
 
-Start all locally: `bash scripts/run-local.sh`
+The **brochure / canonical site** (`opencall-api.com` and `www.opencall-api.com`) lives at `<repo-root>/site/`. It is a separate concern from this `demo/` directory — different audience (newcomers, agents reading docs) and different infrastructure (Firebase Hosting target `www`, configured in `demo/firebase.json` with `public: ../site/dist`). Don't conflate the brochure (`/`) with the demo app (`demo.opencall-api.com`).
+
+Start all locally (including the brochure dev server): `bash scripts/run-local.sh`
 Deploy all: `bash scripts/deploy.sh`
 
 ## Bun
