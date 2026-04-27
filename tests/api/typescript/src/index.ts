@@ -4,6 +4,7 @@ import { resetStorage, type MediaFile, getStreamSession, setBroadcastFn, resetSt
 import { registerToken, resetTokenStore } from "./auth";
 import { getInstance, resetInstances } from "./state";
 import { getMedia, resetMedia } from "./media";
+import { validateEnvelope } from "@opencall/server";
 import type { ServerWebSocket } from "bun";
 
 export function createServer(port: number = 3000) {
@@ -162,7 +163,11 @@ export function createServer(port: number = 3000) {
           }
 
           const authHeader = req.headers.get("authorization");
-          const { status, body } = handleCall(envelope as Parameters<typeof handleCall>[0], authHeader, mediaFile);
+          const validated = validateEnvelope(envelope);
+          if (!validated.ok) {
+            return Response.json(validated.error.body, { status: validated.error.status });
+          }
+          const { status, body } = handleCall(validated.envelope, authHeader, mediaFile);
           return Response.json(body, { status });
         })();
       }

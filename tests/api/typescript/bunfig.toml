@@ -1,0 +1,3 @@
+[install]
+# Allow newly-published @opencall packages (override global 7-day quarantine)
+minimumReleaseAge = 0

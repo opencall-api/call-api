@@ -9,6 +9,12 @@ Language-agnostic test suite for validating OpenCALL API implementations, plus r
 bun install && bun test
 ```
 
+### Note on Bun's package quarantine
+
+The TypeScript reference server depends on `@opencall/server` and `@opencall/types` from npm. If your global Bun config (`~/.bunfig.toml`) sets `[install] minimumReleaseAge` (a useful supply-chain defence — Bun will refuse to install packages younger than the configured age), `bun install` may fail when those packages have been freshly published.
+
+`tests/api/typescript/bunfig.toml` opts this directory into `minimumReleaseAge = 0` so the conformance suite can install the latest `@opencall/*` versions without lowering the global default. This is a deliberate per-project exception for packages we control; do not generalise it.
+
 ## How It Works
 
 The test suite communicates with any OpenCALL-compliant API via HTTP. By default, it starts the TypeScript API in-process for fast TDD cycles. Set `API_URL` to test against any running server.
