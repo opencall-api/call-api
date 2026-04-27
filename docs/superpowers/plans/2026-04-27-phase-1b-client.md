@@ -4,7 +4,7 @@
 
 **Goal:** Add a third workspace package `packages/client/` to the now-monorepo `opencall-api/ts-tools`, publishing as `@opencall/client@0.1.0`. The client is intentionally thin per `client.md` — a single `call()` function that wraps an envelope and POSTs it, plus a small handful of helpers for async polling, stream subscription, and chunked retrieval, plus a `bin` codegen tool that reads `/.well-known/ops` and emits typed wrappers.
 
-**Architecture:** New workspace package depending on `@opencall/types@^0.1.0` (already published at v0.1.0 in Phase 1a). All shared schemas/types come from there. Client adds zero net-new wire-level types — it consumes the existing canonical contract.
+**Architecture:** New workspace package `packages/client/` depending on `@opencall/types`. As part of this phase, types is bumped to `0.1.1` (additive: adds `StreamDescriptor` and the `stream` field on `ResponseEnvelope`) so the client's `subscribeStream` is fully type-safe with no runtime casts. All wire-level types live in `@opencall/types`; the client adds zero new contract types — it only adds runtime helpers.
 
 **Surface:**
 
@@ -54,6 +54,7 @@ Expected: 96/96 tests pass; types and server both build clean. If anything is re
 ### Task 1: Add `packages/client/` workspace skeleton
 
 **Files:**
+
 - Create: `packages/client/package.json`
 - Create: `packages/client/tsconfig.json`
 - Create: `packages/client/src/index.ts` (empty placeholder; tasks 2-6 fill it in)
@@ -78,13 +79,7 @@ Expected: 96/96 tests pass; types and server both build clean. If anything is re
       "types": "./dist/index.d.ts"
     }
   },
-  "files": [
-    "dist",
-    "src",
-    "README.md",
-    "CHANGELOG.md",
-    "LICENSE"
-  ],
+  "files": ["dist", "src", "README.md", "CHANGELOG.md", "LICENSE"],
   "scripts": {
     "build": "tsc",
     "typecheck": "tsc --noEmit",
@@ -97,14 +92,7 @@ Expected: 96/96 tests pass; types and server both build clean. If anything is re
   "peerDependencies": {
     "typescript": "^5"
   },
-  "keywords": [
-    "opencall",
-    "api",
-    "client",
-    "fetch",
-    "codegen",
-    "agent"
-  ],
+  "keywords": ["opencall", "api", "client", "fetch", "codegen", "agent"],
   "license": "Apache-2.0",
   "homepage": "https://opencall-api.com/spec/client/",
   "repository": {
@@ -141,7 +129,7 @@ Note: `publishConfig` does NOT include `provenance: true`. Provenance is provide
 
 ```ts
 // Filled in by subsequent tasks in this plan.
-export {}
+export {};
 ```
 
 - [ ] **Step 1.4: Create `packages/client/test/.gitkeep`** (empty file) so the directory is tracked.
@@ -184,6 +172,7 @@ git commit -m "client: add packages/client workspace skeleton"
 ### Task 2: TDD core `call()` function
 
 **Files:**
+
 - Modify: `packages/client/src/index.ts`
 - Create: `packages/client/src/call.ts`
 - Create: `packages/client/test/call.test.ts`
@@ -227,99 +216,125 @@ Where `ResponseEnvelope` is imported from `@opencall/types`.
 - [ ] **Step 2.1: Write failing tests in `packages/client/test/call.test.ts`**
 
 ```ts
-import { test, expect } from "bun:test"
-import { call } from "../src/call"
+import { test, expect } from "bun:test";
+import { call } from "../src/call";
 
 function mockFetch(response: { status: number; body: unknown }): typeof fetch {
   return async (_input: RequestInfo | URL, _init?: RequestInit) => {
     return new Response(JSON.stringify(response.body), {
       status: response.status,
       headers: { "content-type": "application/json" },
-    })
-  }
+    });
+  };
 }
 
 test("call posts to /call with the envelope", async () => {
-  const calls: { url: string; init: RequestInit }[] = []
+  const calls: { url: string; init: RequestInit }[] = [];
   const fakeFetch: typeof fetch = async (input, init) => {
-    calls.push({ url: String(input), init: init ?? {} })
+    calls.push({ url: String(input), init: init ?? {} });
     return new Response(
-      JSON.stringify({ requestId: "abc", state: "complete", result: { ok: true } }),
+      JSON.stringify({
+        requestId: "abc",
+        state: "complete",
+        result: { ok: true },
+      }),
       { status: 200, headers: { "content-type": "application/json" } },
-    )
-  }
-  const res = await call("v1:orders.getItem", { orderId: "1" }, { requestId: "abc" }, {
-    endpoint: "https://api.example.com",
-    fetch: fakeFetch,
-  })
-  expect(calls.length).toBe(1)
-  expect(calls[0]!.url).toBe("https://api.example.com/call")
-  expect(calls[0]!.init.method).toBe("POST")
-  const body = JSON.parse(String(calls[0]!.init.body))
-  expect(body.op).toBe("v1:orders.getItem")
-  expect(body.args).toEqual({ orderId: "1" })
-  expect(body.ctx.requestId).toBe("abc")
-  expect(res.state).toBe("complete")
-  expect((res.result as { ok: boolean }).ok).toBe(true)
-})
+    );
+  };
+  const res = await call(
+    "v1:orders.getItem",
+    { orderId: "1" },
+    { requestId: "abc" },
+    {
+      endpoint: "https://api.example.com",
+      fetch: fakeFetch,
+    },
+  );
+  expect(calls.length).toBe(1);
+  expect(calls[0]!.url).toBe("https://api.example.com/call");
+  expect(calls[0]!.init.method).toBe("POST");
+  const body = JSON.parse(String(calls[0]!.init.body));
+  expect(body.op).toBe("v1:orders.getItem");
+  expect(body.args).toEqual({ orderId: "1" });
+  expect(body.ctx.requestId).toBe("abc");
+  expect(res.state).toBe("complete");
+  expect((res.result as { ok: boolean }).ok).toBe(true);
+});
 
 test("call generates a requestId when not provided", async () => {
-  const calls: { body: unknown }[] = []
+  const calls: { body: unknown }[] = [];
   const fakeFetch: typeof fetch = async (_input, init) => {
-    calls.push({ body: JSON.parse(String(init!.body)) })
-    return new Response(JSON.stringify({ requestId: "auto", state: "complete" }), { status: 200 })
-  }
-  await call("v1:foo.bar", {}, undefined, { endpoint: "https://api.example.com", fetch: fakeFetch })
-  const sent = calls[0]!.body as { ctx: { requestId: string } }
-  expect(typeof sent.ctx.requestId).toBe("string")
-  expect(sent.ctx.requestId.length).toBeGreaterThan(0)
-})
+    calls.push({ body: JSON.parse(String(init!.body)) });
+    return new Response(
+      JSON.stringify({ requestId: "auto", state: "complete" }),
+      { status: 200 },
+    );
+  };
+  await call("v1:foo.bar", {}, undefined, {
+    endpoint: "https://api.example.com",
+    fetch: fakeFetch,
+  });
+  const sent = calls[0]!.body as { ctx: { requestId: string } };
+  expect(typeof sent.ctx.requestId).toBe("string");
+  expect(sent.ctx.requestId.length).toBeGreaterThan(0);
+});
 
 test("call sends Authorization header when a static token is supplied", async () => {
-  let captured: Headers | undefined
+  let captured: Headers | undefined;
   const fakeFetch: typeof fetch = async (_input, init) => {
-    captured = new Headers(init!.headers)
-    return new Response(JSON.stringify({ requestId: "x", state: "complete" }), { status: 200 })
-  }
+    captured = new Headers(init!.headers);
+    return new Response(JSON.stringify({ requestId: "x", state: "complete" }), {
+      status: 200,
+    });
+  };
   await call("v1:foo", {}, undefined, {
     endpoint: "https://api.example.com",
     fetch: fakeFetch,
     token: "abc.def.ghi",
-  })
-  expect(captured!.get("authorization")).toBe("Bearer abc.def.ghi")
-})
+  });
+  expect(captured!.get("authorization")).toBe("Bearer abc.def.ghi");
+});
 
 test("call resolves a function token (sync or async)", async () => {
-  let captured: string | undefined
+  let captured: string | undefined;
   const fakeFetch: typeof fetch = async (_input, init) => {
-    captured = new Headers(init!.headers).get("authorization") ?? undefined
-    return new Response(JSON.stringify({ requestId: "x", state: "complete" }), { status: 200 })
-  }
+    captured = new Headers(init!.headers).get("authorization") ?? undefined;
+    return new Response(JSON.stringify({ requestId: "x", state: "complete" }), {
+      status: 200,
+    });
+  };
   await call("v1:foo", {}, undefined, {
     endpoint: "https://api.example.com",
     fetch: fakeFetch,
     token: async () => "dyn-token",
-  })
-  expect(captured).toBe("Bearer dyn-token")
-})
+  });
+  expect(captured).toBe("Bearer dyn-token");
+});
 
 test("call without endpoint throws when no global location is available", async () => {
   await expect(
-    call("v1:foo", {}, undefined, { fetch: mockFetch({ status: 200, body: {} }) }),
-  ).rejects.toThrow(/endpoint/i)
-})
+    call("v1:foo", {}, undefined, {
+      fetch: mockFetch({ status: 200, body: {} }),
+    }),
+  ).rejects.toThrow(/endpoint/i);
+});
 
 test("parseResponse: true validates the response and rejects malformed payloads", async () => {
   const malformed: typeof fetch = async () =>
-    new Response(JSON.stringify({ /* missing requestId, state */ }), { status: 200 })
+    new Response(
+      JSON.stringify({
+        /* missing requestId, state */
+      }),
+      { status: 200 },
+    );
   await expect(
     call("v1:foo", {}, undefined, {
       endpoint: "https://api.example.com",
       fetch: malformed,
       parseResponse: true,
     }),
-  ).rejects.toThrow()
-})
+  ).rejects.toThrow();
+});
 ```
 
 - [ ] **Step 2.2: Run, verify failure**
@@ -347,7 +362,7 @@ Implementation outline:
 Then re-export from `packages/client/src/index.ts`:
 
 ```ts
-export { call, type CallContext, type CallOptions } from "./call.js"
+export { call, type CallContext, type CallOptions } from "./call.js";
 ```
 
 - [ ] **Step 2.4: Verify tests pass**
@@ -371,6 +386,7 @@ git commit -m "client: implement core call() over fetch"
 ### Task 3: TDD `callAndWait()` polling helper
 
 **Files:**
+
 - Create: `packages/client/src/wait.ts`
 - Create: `packages/client/test/wait.test.ts`
 - Modify: `packages/client/src/index.ts` (re-export)
@@ -403,48 +419,64 @@ Test cases:
 Specific test code to include — keep tests focused and small:
 
 ```ts
-import { test, expect } from "bun:test"
-import { callAndWait } from "../src/wait"
+import { test, expect } from "bun:test";
+import { callAndWait } from "../src/wait";
 
 test("callAndWait returns immediately on a complete first response", async () => {
   const fakeFetch: typeof fetch = async () =>
-    new Response(JSON.stringify({ requestId: "x", state: "complete", result: 1 }), { status: 200 })
+    new Response(
+      JSON.stringify({ requestId: "x", state: "complete", result: 1 }),
+      { status: 200 },
+    );
   const res = await callAndWait("v1:foo", {}, undefined, {
     endpoint: "https://api.example.com",
     fetch: fakeFetch,
-  })
-  expect(res.state).toBe("complete")
-})
+  });
+  expect(res.state).toBe("complete");
+});
 
 test("callAndWait polls when state is accepted, terminates on complete", async () => {
-  let n = 0
+  let n = 0;
   const fakeFetch: typeof fetch = async (input) => {
-    n++
-    const url = String(input)
+    n++;
+    const url = String(input);
     if (url.endsWith("/call")) {
-      return new Response(JSON.stringify({
-        requestId: "x",
-        state: "accepted",
-        location: { uri: "https://api.example.com/ops/x" },
-        retryAfterMs: 1,
-      }), { status: 202 })
+      return new Response(
+        JSON.stringify({
+          requestId: "x",
+          state: "accepted",
+          location: { uri: "https://api.example.com/ops/x" },
+          retryAfterMs: 1,
+        }),
+        { status: 202 },
+      );
     }
-    return new Response(JSON.stringify({ requestId: "x", state: "complete", result: 42 }), { status: 200 })
-  }
+    return new Response(
+      JSON.stringify({ requestId: "x", state: "complete", result: 42 }),
+      { status: 200 },
+    );
+  };
   const res = await callAndWait("v1:foo", {}, undefined, {
     endpoint: "https://api.example.com",
     fetch: fakeFetch,
     minPollMs: 1,
-  })
-  expect(res.state).toBe("complete")
-  expect((res.result as number)).toBe(42)
-  expect(n).toBeGreaterThanOrEqual(2)
-})
+  });
+  expect(res.state).toBe("complete");
+  expect(Number(res.result)).toBe(42);
+  expect(n).toBeGreaterThanOrEqual(2);
+});
 
 test("callAndWait throws on maxWaitMs exceeded", async () => {
-  const fakeFetch: typeof fetch = async () => new Response(JSON.stringify({
-    requestId: "x", state: "accepted", location: { uri: "https://api.example.com/ops/x" }, retryAfterMs: 1,
-  }), { status: 202 })
+  const fakeFetch: typeof fetch = async () =>
+    new Response(
+      JSON.stringify({
+        requestId: "x",
+        state: "accepted",
+        location: { uri: "https://api.example.com/ops/x" },
+        retryAfterMs: 1,
+      }),
+      { status: 202 },
+    );
   await expect(
     callAndWait("v1:foo", {}, undefined, {
       endpoint: "https://api.example.com",
@@ -452,20 +484,26 @@ test("callAndWait throws on maxWaitMs exceeded", async () => {
       maxWaitMs: 50,
       minPollMs: 1,
     }),
-  ).rejects.toThrow(/maxWaitMs|timed out/i)
-})
+  ).rejects.toThrow(/maxWaitMs|timed out/i);
+});
 
 test("callAndWait returns terminal error state without throwing", async () => {
-  const fakeFetch: typeof fetch = async () => new Response(JSON.stringify({
-    requestId: "x", state: "error", error: { code: "FOO", message: "nope" },
-  }), { status: 200 })
+  const fakeFetch: typeof fetch = async () =>
+    new Response(
+      JSON.stringify({
+        requestId: "x",
+        state: "error",
+        error: { code: "FOO", message: "nope" },
+      }),
+      { status: 200 },
+    );
   const res = await callAndWait("v1:foo", {}, undefined, {
     endpoint: "https://api.example.com",
     fetch: fakeFetch,
-  })
-  expect(res.state).toBe("error")
-  expect(res.error?.code).toBe("FOO")
-})
+  });
+  expect(res.state).toBe("error");
+  expect(res.error?.code).toBe("FOO");
+});
 ```
 
 - [ ] **Step 3.2: Verify failure**
@@ -490,7 +528,7 @@ Implementation:
 Re-export from `packages/client/src/index.ts`:
 
 ```ts
-export { callAndWait } from "./wait.js"
+export { callAndWait } from "./wait.js";
 ```
 
 - [ ] **Step 3.4: Verify tests pass**
@@ -514,6 +552,7 @@ git commit -m "client: add callAndWait polling helper"
 ### Task 4: TDD chunked retrieval helper
 
 **Files:**
+
 - Create: `packages/client/src/chunked.ts`
 - Create: `packages/client/test/chunked.test.ts`
 - Modify: `packages/client/src/index.ts` (re-export)
@@ -552,92 +591,138 @@ Test cases (use a fixture of 3 small chunks with computed sha256 chain):
 Provide exact test code:
 
 ```ts
-import { test, expect } from "bun:test"
-import { retrieveChunked } from "../src/chunked"
+import { test, expect } from "bun:test";
+import { retrieveChunked } from "../src/chunked";
 
 async function sha256Hex(bytes: Uint8Array): Promise<string> {
-  const digest = await crypto.subtle.digest("SHA-256", bytes as BufferSource)
-  return Array.from(new Uint8Array(digest)).map((b) => b.toString(16).padStart(2, "0")).join("")
+  const digest = await crypto.subtle.digest("SHA-256", bytes as BufferSource);
+  return Array.from(new Uint8Array(digest))
+    .map((b) => b.toString(16).padStart(2, "0"))
+    .join("");
 }
-function b64(bytes: Uint8Array): string { return Buffer.from(bytes).toString("base64") }
+function b64(bytes: Uint8Array): string {
+  return Buffer.from(bytes).toString("base64");
+}
 
 test("single-chunk complete retrieval returns the decoded bytes", async () => {
-  const bytes = new Uint8Array([1, 2, 3, 4, 5])
-  const checksum = `sha256:${await sha256Hex(bytes)}`
-  const fakeFetch: typeof fetch = async () => new Response(JSON.stringify({
-    state: "complete",
-    chunk: { checksum, checksumPrevious: null },
-    data: b64(bytes),
-  }))
-  const out = await retrieveChunked("req-1", { endpoint: "https://api.example.com", fetch: fakeFetch })
-  expect(Array.from(out)).toEqual([1, 2, 3, 4, 5])
-})
+  const bytes = new Uint8Array([1, 2, 3, 4, 5]);
+  const checksum = `sha256:${await sha256Hex(bytes)}`;
+  const fakeFetch: typeof fetch = async () =>
+    new Response(
+      JSON.stringify({
+        state: "complete",
+        chunk: { checksum, checksumPrevious: null },
+        data: b64(bytes),
+      }),
+    );
+  const out = await retrieveChunked("req-1", {
+    endpoint: "https://api.example.com",
+    fetch: fakeFetch,
+  });
+  expect(Array.from(out)).toEqual([1, 2, 3, 4, 5]);
+});
 
 test("two chunks concatenate when chain is valid", async () => {
-  const c1 = new Uint8Array([1, 2, 3])
-  const c2 = new Uint8Array([4, 5, 6])
-  const h1 = `sha256:${await sha256Hex(c1)}`
-  const h2 = `sha256:${await sha256Hex(c2)}`
-  let n = 0
+  const c1 = new Uint8Array([1, 2, 3]);
+  const c2 = new Uint8Array([4, 5, 6]);
+  const h1 = `sha256:${await sha256Hex(c1)}`;
+  const h2 = `sha256:${await sha256Hex(c2)}`;
+  let n = 0;
   const fakeFetch: typeof fetch = async () => {
-    n++
+    n++;
     if (n === 1) {
-      return new Response(JSON.stringify({
-        state: "pending",
-        chunk: { checksum: h1, checksumPrevious: null },
-        data: b64(c1),
-        cursor: "1",
-      }))
+      return new Response(
+        JSON.stringify({
+          state: "pending",
+          chunk: { checksum: h1, checksumPrevious: null },
+          data: b64(c1),
+          cursor: "1",
+        }),
+      );
     }
-    return new Response(JSON.stringify({
-      state: "complete",
-      chunk: { checksum: h2, checksumPrevious: h1 },
-      data: b64(c2),
-    }))
-  }
-  const out = await retrieveChunked("req-1", { endpoint: "https://api.example.com", fetch: fakeFetch })
-  expect(Array.from(out)).toEqual([1, 2, 3, 4, 5, 6])
-})
+    return new Response(
+      JSON.stringify({
+        state: "complete",
+        chunk: { checksum: h2, checksumPrevious: h1 },
+        data: b64(c2),
+      }),
+    );
+  };
+  const out = await retrieveChunked("req-1", {
+    endpoint: "https://api.example.com",
+    fetch: fakeFetch,
+  });
+  expect(Array.from(out)).toEqual([1, 2, 3, 4, 5, 6]);
+});
 
 test("chain break throws", async () => {
-  const c1 = new Uint8Array([1])
-  const c2 = new Uint8Array([2])
-  const h1 = `sha256:${await sha256Hex(c1)}`
-  const h2 = `sha256:${await sha256Hex(c2)}`
-  let n = 0
+  const c1 = new Uint8Array([1]);
+  const c2 = new Uint8Array([2]);
+  const h1 = `sha256:${await sha256Hex(c1)}`;
+  const h2 = `sha256:${await sha256Hex(c2)}`;
+  let n = 0;
   const fakeFetch: typeof fetch = async () => {
-    n++
-    if (n === 1) return new Response(JSON.stringify({ state: "pending", chunk: { checksum: h1, checksumPrevious: null }, data: b64(c1), cursor: "1" }))
-    return new Response(JSON.stringify({ state: "complete", chunk: { checksum: h2, checksumPrevious: "sha256:WRONG" }, data: b64(c2) }))
-  }
+    n++;
+    if (n === 1)
+      return new Response(
+        JSON.stringify({
+          state: "pending",
+          chunk: { checksum: h1, checksumPrevious: null },
+          data: b64(c1),
+          cursor: "1",
+        }),
+      );
+    return new Response(
+      JSON.stringify({
+        state: "complete",
+        chunk: { checksum: h2, checksumPrevious: "sha256:WRONG" },
+        data: b64(c2),
+      }),
+    );
+  };
   await expect(
-    retrieveChunked("req-1", { endpoint: "https://api.example.com", fetch: fakeFetch }),
-  ).rejects.toThrow(/chain/i)
-})
+    retrieveChunked("req-1", {
+      endpoint: "https://api.example.com",
+      fetch: fakeFetch,
+    }),
+  ).rejects.toThrow(/chain/i);
+});
 
 test("hash mismatch throws", async () => {
-  const c1 = new Uint8Array([1, 2, 3])
-  const fakeFetch: typeof fetch = async () => new Response(JSON.stringify({
-    state: "complete",
-    chunk: { checksum: "sha256:WRONG", checksumPrevious: null },
-    data: b64(c1),
-  }))
+  const c1 = new Uint8Array([1, 2, 3]);
+  const fakeFetch: typeof fetch = async () =>
+    new Response(
+      JSON.stringify({
+        state: "complete",
+        chunk: { checksum: "sha256:WRONG", checksumPrevious: null },
+        data: b64(c1),
+      }),
+    );
   await expect(
-    retrieveChunked("req-1", { endpoint: "https://api.example.com", fetch: fakeFetch }),
-  ).rejects.toThrow(/checksum|mismatch/i)
-})
+    retrieveChunked("req-1", {
+      endpoint: "https://api.example.com",
+      fetch: fakeFetch,
+    }),
+  ).rejects.toThrow(/checksum|mismatch/i);
+});
 
 test("error state throws with the error code", async () => {
-  const fakeFetch: typeof fetch = async () => new Response(JSON.stringify({
-    state: "error",
-    chunk: { checksum: "sha256:0", checksumPrevious: null },
-    data: "",
-    error: { code: "INTERNAL_ERROR", message: "boom" },
-  }))
+  const fakeFetch: typeof fetch = async () =>
+    new Response(
+      JSON.stringify({
+        state: "error",
+        chunk: { checksum: "sha256:0", checksumPrevious: null },
+        data: "",
+        error: { code: "INTERNAL_ERROR", message: "boom" },
+      }),
+    );
   await expect(
-    retrieveChunked("req-1", { endpoint: "https://api.example.com", fetch: fakeFetch }),
-  ).rejects.toThrow(/INTERNAL_ERROR|boom/)
-})
+    retrieveChunked("req-1", {
+      endpoint: "https://api.example.com",
+      fetch: fakeFetch,
+    }),
+  ).rejects.toThrow(/INTERNAL_ERROR|boom/);
+});
 ```
 
 - [ ] **Step 4.2: Verify failure**
@@ -684,7 +769,7 @@ async function retrieveChunked(requestId, options):
 Re-export from index.ts:
 
 ```ts
-export { retrieveChunked, type ChunkResponse } from "./chunked.js"
+export { retrieveChunked, type ChunkResponse } from "./chunked.js";
 ```
 
 - [ ] **Step 4.4: Verify tests pass**
@@ -708,11 +793,12 @@ git commit -m "client: add retrieveChunked with checksum chain validation"
 ### Task 5: TDD stream subscription helper
 
 **Files:**
+
 - Create: `packages/client/src/stream.ts`
 - Create: `packages/client/test/stream.test.ts`
 - Modify: `packages/client/src/index.ts` (re-export)
 
-Stream subscription returns a `state: "streaming"` response carrying a `stream` object with `transport`, `encoding`, `schema`, `location`, `sessionId`, and possibly short-lived `auth` credentials. Per `client.md`, the *connection* itself is the caller's responsibility (wss/MQTT/Kafka — different transports). The helper's job is just to perform the subscribe call and return the stream descriptor (typed).
+Stream subscription returns a `state: "streaming"` response carrying a `stream` object with `transport`, `encoding`, `schema`, `location`, `sessionId`, and possibly short-lived `auth` credentials. Per `client.md`, the _connection_ itself is the caller's responsibility (wss/MQTT/Kafka — different transports). The helper's job is just to perform the subscribe call and return the stream descriptor (typed).
 
 **Surface:**
 
@@ -740,54 +826,71 @@ Throws if the response state isn't `streaming`, with a message including the act
 - [ ] **Step 5.1: Tests**
 
 ```ts
-import { test, expect } from "bun:test"
-import { subscribeStream } from "../src/stream"
+import { test, expect } from "bun:test";
+import { subscribeStream } from "../src/stream";
 
 test("subscribeStream returns the stream descriptor on a streaming response", async () => {
-  const fakeFetch: typeof fetch = async () => new Response(JSON.stringify({
-    requestId: "ggg",
-    state: "streaming",
-    stream: {
-      transport: "wss",
-      encoding: "protobuf",
-      schema: "device.PositionFrame",
-      location: "wss://streams.example.com/s/ggg",
-      sessionId: "mission-001",
-      expiresAt: 1739282400,
+  const fakeFetch: typeof fetch = async () =>
+    new Response(
+      JSON.stringify({
+        requestId: "ggg",
+        state: "streaming",
+        stream: {
+          transport: "wss",
+          encoding: "protobuf",
+          schema: "device.PositionFrame",
+          location: "wss://streams.example.com/s/ggg",
+          sessionId: "mission-001",
+          expiresAt: 1739282400,
+        },
+      }),
+    );
+  const desc = await subscribeStream(
+    "v1:device.subscribePosition",
+    { deviceId: "arm-1" },
+    undefined,
+    {
+      endpoint: "https://api.example.com",
+      fetch: fakeFetch,
     },
-  }))
-  const desc = await subscribeStream("v1:device.subscribePosition", { deviceId: "arm-1" }, undefined, {
-    endpoint: "https://api.example.com",
-    fetch: fakeFetch,
-  })
-  expect(desc.transport).toBe("wss")
-  expect(desc.location).toBe("wss://streams.example.com/s/ggg")
-  expect(desc.sessionId).toBe("mission-001")
-})
+  );
+  expect(desc.transport).toBe("wss");
+  expect(desc.location).toBe("wss://streams.example.com/s/ggg");
+  expect(desc.sessionId).toBe("mission-001");
+});
 
 test("subscribeStream throws when state is not streaming", async () => {
-  const fakeFetch: typeof fetch = async () => new Response(JSON.stringify({
-    requestId: "x", state: "complete", result: { unexpected: true },
-  }))
+  const fakeFetch: typeof fetch = async () =>
+    new Response(
+      JSON.stringify({
+        requestId: "x",
+        state: "complete",
+        result: { unexpected: true },
+      }),
+    );
   await expect(
     subscribeStream("v1:device.subscribePosition", {}, undefined, {
       endpoint: "https://api.example.com",
       fetch: fakeFetch,
     }),
-  ).rejects.toThrow(/streaming/i)
-})
+  ).rejects.toThrow(/streaming/i);
+});
 
 test("subscribeStream throws when stream object is missing", async () => {
-  const fakeFetch: typeof fetch = async () => new Response(JSON.stringify({
-    requestId: "x", state: "streaming",
-  }))
+  const fakeFetch: typeof fetch = async () =>
+    new Response(
+      JSON.stringify({
+        requestId: "x",
+        state: "streaming",
+      }),
+    );
   await expect(
     subscribeStream("v1:device.subscribePosition", {}, undefined, {
       endpoint: "https://api.example.com",
       fetch: fakeFetch,
     }),
-  ).rejects.toThrow(/stream/)
-})
+  ).rejects.toThrow(/stream/);
+});
 ```
 
 - [ ] **Step 5.2: Verify failure**
@@ -796,22 +899,101 @@ test("subscribeStream throws when stream object is missing", async () => {
 bun test --cwd packages/client test/stream.test.ts 2>&1 | tail -10
 ```
 
-- [ ] **Step 5.3: Implement `packages/client/src/stream.ts`**
+- [ ] **Step 5.3: Bump `@opencall/types` to add `StreamDescriptor` and the `stream` field**
+
+The existing `ResponseEnvelope` in `@opencall/types@0.1.0` doesn't model the `stream` object. We're going to type-safely return it from the client, so we need it in the canonical contract. This is an additive change — bump types to `0.1.1` (patch).
+
+Edit `packages/types/src/envelope.ts`. Add a new exported interface and add the `stream` field to `ResponseEnvelope`:
 
 ```ts
-import type { ResponseEnvelope } from "@opencall/types"
-import { call } from "./call.js"
-import type { CallContext, CallOptions } from "./call.js"
-
 export interface StreamDescriptor {
-  transport: string
-  encoding: string
-  schema: string
-  location: string
-  sessionId: string
-  expiresAt?: number
-  auth?: { credentialType: string; credential: string; expiresAt?: number }
+  transport: string;
+  encoding: string;
+  schema: string;
+  location: string;
+  sessionId: string;
+  expiresAt?: number;
+  auth?: { credentialType: string; credential: string; expiresAt?: number };
 }
+
+export interface ResponseEnvelope {
+  // ... existing fields ...
+  stream?: StreamDescriptor;
+}
+```
+
+Update `packages/types/src/index.ts` to re-export the new type:
+
+```ts
+export {
+  RequestEnvelopeSchema,
+  type RequestEnvelope,
+  type ResponseState,
+  type ResponseEnvelope,
+  type StreamDescriptor,
+} from "./envelope.js";
+```
+
+Bump `packages/types/package.json` `version` from `0.1.0` to `0.1.1`.
+
+Add an entry to `packages/types/CHANGELOG.md`:
+
+```markdown
+## 0.1.1 — 2026-04-27
+
+### Added
+- `StreamDescriptor` interface and `ResponseEnvelope.stream?: StreamDescriptor` field. Models the streaming subscription response shape that the spec already documents on the wire.
+```
+
+Add a small test in `packages/server/test/envelope.test.ts` (or wherever the envelope tests live):
+
+```ts
+import type { ResponseEnvelope, StreamDescriptor } from "@opencall/types";
+
+test("ResponseEnvelope accepts an optional stream descriptor", () => {
+  const env: ResponseEnvelope = {
+    requestId: "x",
+    state: "streaming",
+    stream: {
+      transport: "wss",
+      encoding: "protobuf",
+      schema: "device.PositionFrame",
+      location: "wss://streams.example.com/s/x",
+      sessionId: "session-1",
+    },
+  };
+  expect(env.stream?.transport).toBe("wss");
+});
+
+test("StreamDescriptor accepts optional auth + expiresAt", () => {
+  const desc: StreamDescriptor = {
+    transport: "wss",
+    encoding: "protobuf",
+    schema: "device.PositionFrame",
+    location: "wss://streams.example.com/s/x",
+    sessionId: "session-1",
+    expiresAt: 1739282400,
+    auth: { credentialType: "bearer", credential: "short-lived", expiresAt: 1739282400 },
+  };
+  expect(desc.auth?.credentialType).toBe("bearer");
+});
+```
+
+Verify and commit the types bump as a separate commit:
+
+```bash
+bun --filter='@opencall/types' run build
+bun test
+git add packages/types/src/envelope.ts packages/types/src/index.ts packages/types/package.json packages/types/CHANGELOG.md packages/server/test/envelope.test.ts
+git commit -m "types: 0.1.1 — add StreamDescriptor and ResponseEnvelope.stream"
+```
+
+- [ ] **Step 5.4: Implement `packages/client/src/stream.ts`** — fully type-safe, no cast
+
+```ts
+import type { ResponseEnvelope, StreamDescriptor } from "@opencall/types";
+import { call } from "./call.js";
+import type { CallContext, CallOptions } from "./call.js";
 
 export async function subscribeStream(
   op: string,
@@ -819,37 +1001,41 @@ export async function subscribeStream(
   ctx?: CallContext,
   options?: CallOptions,
 ): Promise<StreamDescriptor> {
-  const res: ResponseEnvelope = await call(op, args, ctx, options)
+  const res: ResponseEnvelope = await call(op, args, ctx, options);
   if (res.state !== "streaming") {
     throw new Error(
       `subscribeStream: expected state="streaming" but got "${res.state}"${
         res.error ? ` (error ${res.error.code}: ${res.error.message})` : ""
       }`,
-    )
+    );
   }
-  const stream = (res as ResponseEnvelope & { stream?: StreamDescriptor }).stream
-  if (!stream) {
-    throw new Error("subscribeStream: response had state=streaming but no stream descriptor")
+  if (!res.stream) {
+    throw new Error(
+      "subscribeStream: response had state=streaming but no stream descriptor",
+    );
   }
-  return stream
+  return res.stream;
 }
 ```
 
-(Note: the existing `ResponseEnvelope` in `@opencall/types` may not yet declare `stream`. If typecheck fails because of that, EITHER add `stream?: StreamDescriptor` to `ResponseEnvelope` in `@opencall/types` and bump types to `0.2.0` — OR cast as shown. The cast keeps types' surface stable; the field exists on the wire per `specification.md` even if the TS type doesn't yet model it. Pick the cast for now; raise the type-extension as a follow-up.)
+`StreamDescriptor` now comes from `@opencall/types` — the client doesn't redefine it. This means consumers of both `@opencall/client` and `@opencall/types` see the same `StreamDescriptor` identity.
 
-Re-export:
+Re-export from `packages/client/src/index.ts`. Re-export the type for ergonomics so consumers don't have to install `@opencall/types` separately just to type the return value:
 
 ```ts
-export { subscribeStream, type StreamDescriptor } from "./stream.js"
+export { subscribeStream } from "./stream.js";
+export type { StreamDescriptor } from "@opencall/types";
 ```
 
-- [ ] **Step 5.4: Verify tests pass + commit**
+Bump `packages/client/package.json` `dependencies."@opencall/types"` from `^0.1.0` to `^0.1.1` (so the lockfile records the new version once published).
+
+- [ ] **Step 5.5: Verify tests pass + commit (client side)**
 
 ```bash
-bun run --cwd packages/client build
-bun test --cwd packages/client
-git add packages/client/src/stream.ts packages/client/src/index.ts packages/client/test/stream.test.ts
-git commit -m "client: add subscribeStream helper"
+bun run build
+bun test
+git add packages/client/src/stream.ts packages/client/src/index.ts packages/client/test/stream.test.ts packages/client/package.json bun.lock
+git commit -m "client: add subscribeStream helper using StreamDescriptor from @opencall/types@^0.1.1"
 ```
 
 ---
@@ -857,6 +1043,7 @@ git commit -m "client: add subscribeStream helper"
 ### Task 6: TDD codegen CLI
 
 **Files:**
+
 - Create: `packages/client/src/codegen.ts`
 - Create: `packages/client/src/cli/codegen.ts`
 - Create: `packages/client/test/codegen.test.ts`
@@ -894,56 +1081,84 @@ opencall-codegen --from https://api.example.com/.well-known/ops --out src/genera
 - [ ] **Step 6.1: Tests for the library function**
 
 ```ts
-import { test, expect } from "bun:test"
-import { generateClientTypes } from "../src/codegen"
-import type { RegistryResponse } from "@opencall/types"
+import { test, expect } from "bun:test";
+import { generateClientTypes } from "../src/codegen";
+import type { RegistryResponse } from "@opencall/types";
 
 const fixture: RegistryResponse = {
   callVersion: "2026-02-10",
   operations: [
     {
       op: "v1:orders.getItem",
-      argsSchema: { type: "object", properties: { orderId: { type: "string" } }, required: ["orderId"] },
-      resultSchema: { type: "object", properties: { name: { type: "string" }, price: { type: "number" } } },
-      sideEffecting: false, idempotencyRequired: false,
-      executionModel: "sync", maxSyncMs: 1000, ttlSeconds: 0,
-      authScopes: [], cachingPolicy: "none",
-      deprecated: true, sunset: "2026-06-01", replacement: "v2:orders.getItem",
+      argsSchema: {
+        type: "object",
+        properties: { orderId: { type: "string" } },
+        required: ["orderId"],
+      },
+      resultSchema: {
+        type: "object",
+        properties: { name: { type: "string" }, price: { type: "number" } },
+      },
+      sideEffecting: false,
+      idempotencyRequired: false,
+      executionModel: "sync",
+      maxSyncMs: 1000,
+      ttlSeconds: 0,
+      authScopes: [],
+      cachingPolicy: "none",
+      deprecated: true,
+      sunset: "2026-06-01",
+      replacement: "v2:orders.getItem",
     },
     {
       op: "v2:orders.getItem",
-      argsSchema: { type: "object", properties: { orderId: { type: "string" } }, required: ["orderId"] },
-      resultSchema: { type: "object", properties: { name: { type: "string" }, price: { type: "number" }, currency: { type: "string" } } },
-      sideEffecting: false, idempotencyRequired: false,
-      executionModel: "sync", maxSyncMs: 1000, ttlSeconds: 0,
-      authScopes: [], cachingPolicy: "none",
+      argsSchema: {
+        type: "object",
+        properties: { orderId: { type: "string" } },
+        required: ["orderId"],
+      },
+      resultSchema: {
+        type: "object",
+        properties: {
+          name: { type: "string" },
+          price: { type: "number" },
+          currency: { type: "string" },
+        },
+      },
+      sideEffecting: false,
+      idempotencyRequired: false,
+      executionModel: "sync",
+      maxSyncMs: 1000,
+      ttlSeconds: 0,
+      authScopes: [],
+      cachingPolicy: "none",
     },
   ],
-}
+};
 
 test("generateClientTypes emits an Operations map keyed by op name", () => {
-  const out = generateClientTypes(fixture)
-  expect(out).toContain('"v1:orders.getItem"')
-  expect(out).toContain('"v2:orders.getItem"')
-  expect(out).toContain("type Operations")
-})
+  const out = generateClientTypes(fixture);
+  expect(out).toContain('"v1:orders.getItem"');
+  expect(out).toContain('"v2:orders.getItem"');
+  expect(out).toContain("type Operations");
+});
 
 test("generated types include args and result subtypes per op", () => {
-  const out = generateClientTypes(fixture)
-  expect(out).toContain("orderId: string")
-  expect(out).toContain("price: number")
-})
+  const out = generateClientTypes(fixture);
+  expect(out).toContain("orderId: string");
+  expect(out).toContain("price: number");
+});
 
 test("deprecated ops carry @deprecated JSDoc with sunset", () => {
-  const out = generateClientTypes(fixture)
-  expect(out).toMatch(/@deprecated.*v1:orders\.getItem|2026-06-01/)
-})
+  const out = generateClientTypes(fixture);
+  expect(out).toMatch(/@deprecated.*v1:orders\.getItem|2026-06-01/);
+});
 
 test("generates a typed call function declaration", () => {
-  const out = generateClientTypes(fixture)
-  expect(out).toContain("declare function call")
-  expect(out).toContain("Op extends keyof Operations")
-})
+  const out = generateClientTypes(fixture);
+  expect(out).toContain("declare function call");
+  expect(out).toContain("Op extends keyof Operations");
+});
 ```
 
 - [ ] **Step 6.2: Implement `packages/client/src/codegen.ts`**
@@ -956,6 +1171,7 @@ For each op: emit a property entry of the form
 Then a `declare function call` overload constraining `args` to `Operations[Op]["args"]` and returning `Promise<CallResponse<Operations[Op]["result"]>>`.
 
 For deprecated ops, prepend a JSDoc block:
+
 ```
 /**
  * @deprecated Sunset: <sunset>. Use <replacement>.
@@ -967,34 +1183,50 @@ For deprecated ops, prepend a JSDoc block:
 Add to `packages/client/test/codegen.test.ts` (or create `test/cli.test.ts`):
 
 ```ts
-import { test, expect } from "bun:test"
-import { writeFile, mkdtemp, readFile } from "node:fs/promises"
-import { tmpdir } from "node:os"
-import { join } from "node:path"
-import { spawnSync } from "node:child_process"
+import { test, expect } from "bun:test";
+import { writeFile, mkdtemp, readFile } from "node:fs/promises";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
+import { spawnSync } from "node:child_process";
 
 test("opencall-codegen reads a local JSON registry and writes a .d.ts", async () => {
-  const dir = await mkdtemp(join(tmpdir(), "opencall-codegen-"))
-  const inFile = join(dir, "ops.json")
-  const outFile = join(dir, "out.d.ts")
-  await writeFile(inFile, JSON.stringify({
-    callVersion: "2026-02-10",
-    operations: [{
-      op: "v1:foo",
-      argsSchema: { type: "object" }, resultSchema: { type: "object" },
-      sideEffecting: false, idempotencyRequired: false, executionModel: "sync",
-      maxSyncMs: 0, ttlSeconds: 0, authScopes: [], cachingPolicy: "none",
-    }],
-  }))
+  const dir = await mkdtemp(join(tmpdir(), "opencall-codegen-"));
+  const inFile = join(dir, "ops.json");
+  const outFile = join(dir, "out.d.ts");
+  await writeFile(
+    inFile,
+    JSON.stringify({
+      callVersion: "2026-02-10",
+      operations: [
+        {
+          op: "v1:foo",
+          argsSchema: { type: "object" },
+          resultSchema: { type: "object" },
+          sideEffecting: false,
+          idempotencyRequired: false,
+          executionModel: "sync",
+          maxSyncMs: 0,
+          ttlSeconds: 0,
+          authScopes: [],
+          cachingPolicy: "none",
+        },
+      ],
+    }),
+  );
   const r = spawnSync(
     "bun",
     ["run", "src/cli/codegen.ts", "--from", inFile, "--out", outFile],
-    { cwd: process.cwd().endsWith("/packages/client") ? process.cwd() : "packages/client", encoding: "utf8" },
-  )
-  expect(r.status).toBe(0)
-  const out = await readFile(outFile, "utf8")
-  expect(out).toContain('"v1:foo"')
-})
+    {
+      cwd: process.cwd().endsWith("/packages/client")
+        ? process.cwd()
+        : "packages/client",
+      encoding: "utf8",
+    },
+  );
+  expect(r.status).toBe(0);
+  const out = await readFile(outFile, "utf8");
+  expect(out).toContain('"v1:foo"');
+});
 ```
 
 - [ ] **Step 6.4: Implement `packages/client/src/cli/codegen.ts`**
@@ -1023,6 +1255,7 @@ git commit -m "client: add generateClientTypes lib + opencall-codegen CLI"
 ### Task 7: README, CHANGELOG, LICENSE
 
 **Files:**
+
 - Create: `packages/client/README.md`
 - Create: `packages/client/CHANGELOG.md`
 - Create: `packages/client/LICENSE` (copy from repo root)
@@ -1043,7 +1276,9 @@ The thinness is the point. There is no class hierarchy, no verb mapping, no path
 
 \`\`\`bash
 npm install @opencall/client @opencall/types
+
 # or
+
 bun add @opencall/client @opencall/types
 \`\`\`
 
@@ -1062,13 +1297,13 @@ bun add @opencall/client @opencall/types
 import { call } from "@opencall/client"
 
 const res = await call(
-  "v1:orders.getItem",
-  { orderId: "456", itemId: "789" },
-  undefined,
-  { endpoint: "https://api.example.com", token: () => getToken() },
+"v1:orders.getItem",
+{ orderId: "456", itemId: "789" },
+undefined,
+{ endpoint: "https://api.example.com", token: () => getToken() },
 )
 if (res.state === "complete") {
-  console.log(res.result)
+console.log(res.result)
 }
 \`\`\`
 
@@ -1101,6 +1336,7 @@ Apache-2.0
 Initial release. The thin OpenCALL client + codegen.
 
 ### Added
+
 - `call()` — single-function `POST /call` with envelope construction, ctx merging, optional Bearer token (static or function), optional response validation via `@opencall/types`'s `ResponseEnvelopeSchema`.
 - `callAndWait()` — polling helper for async (`accepted`/`pending`) responses, honours `retryAfterMs`, configurable `maxWaitMs`.
 - `retrieveChunked()` — pulls server-driven chunked results, validates each chunk's sha256 hash and the chain of `checksumPrevious` links.
@@ -1142,6 +1378,8 @@ git commit -m "docs(client): README, CHANGELOG, LICENSE; mark client as shipped 
 
 Bootstrap publish from your laptop. Trusted publishing for `@opencall/client` is configured AFTER first publish (chicken-and-egg, same as Phase 1a). Phase 1a learned that `publishConfig.provenance: true` blocks local publish — Task 1's package.json already omits it.
 
+This task publishes **two artifacts in order**: `@opencall/types@0.1.1` first (the StreamDescriptor bump from Task 5), then `@opencall/client@0.1.0`. Client must publish second so its `dependencies."@opencall/types": "^0.1.1"` resolves.
+
 - [ ] **Step 8.1: Pre-publish sanity**
 
 ```bash
@@ -1154,15 +1392,18 @@ bun test
 
 Expected: all green.
 
-- [ ] **Step 8.2: Inspect what would publish**
+- [ ] **Step 8.2: Inspect what would publish (both packages)**
 
 ```bash
+cd packages/types && npm pack --dry-run 2>&1 | tail -25 && cd ../..
 cd packages/client && npm pack --dry-run 2>&1 | tail -40 && cd ../..
 ```
 
-Expected file list includes `dist/`, `src/`, `README.md`, `CHANGELOG.md`, `LICENSE`, `package.json`. NO `test/`, no `node_modules/`, no `tsconfig.json`. Sanity-check `dependencies` reads `"@opencall/types": "^0.1.0"` (plain semver, NOT `workspace:`).
+For `@opencall/types`: file list includes `dist/`, `src/`, `README.md`, `CHANGELOG.md`, `LICENSE`, `package.json`. Version `0.1.1`.
 
-- [ ] **Step 8.3: Verify the published tarball declares clean semver**
+For `@opencall/client`: same shape. NO `test/`, no `node_modules/`, no `tsconfig.json`. Sanity-check `dependencies` reads `"@opencall/types": "^0.1.1"` (plain semver, NOT `workspace:`).
+
+- [ ] **Step 8.3: Verify the client tarball declares clean semver against types@0.1.1**
 
 ```bash
 cd packages/client
@@ -1172,9 +1413,20 @@ rm opencall-client-0.1.0.tgz
 cd ../..
 ```
 
-Expected: `dependencies: {'@opencall/types': '^0.1.0', 'zod': '^3.25.0'}`.
+Expected: `dependencies: {'@opencall/types': '^0.1.1', 'zod': '^3.25.0'}`.
 
-- [ ] **Step 8.4: Publish**
+- [ ] **Step 8.4: Publish `@opencall/types@0.1.1` first**
+
+```bash
+cd packages/types
+npm publish --access public
+npm view @opencall/types version
+cd ../..
+```
+
+Expected: success, `npm view` returns `0.1.1`. (`0.1.0` from Phase 1a stays available too — that's just an additional version.)
+
+- [ ] **Step 8.5: Publish `@opencall/client@0.1.0`**
 
 ```bash
 cd packages/client
@@ -1183,9 +1435,9 @@ npm view @opencall/client version
 cd ../..
 ```
 
-Expected: success, `npm view` returns `0.1.0`.
+Expected: success, `npm view` returns `0.1.0` and the dependency on `@opencall/types: ^0.1.1` resolves cleanly.
 
-- [ ] **Step 8.5: End-to-end install test**
+- [ ] **Step 8.6: End-to-end install test**
 
 ```bash
 TEST_DIR=$(mktemp -d -t opencall-client-test-XXXX)
@@ -1200,9 +1452,9 @@ console.log('imports:', { call: typeof call, callAndWait: typeof callAndWait, re
 cd / && rm -rf "$TEST_DIR"
 ```
 
-Expected: all five entries are `function`.
+Expected: all five entries are `function`. Verify the install pulled `@opencall/types@0.1.1` (run `npm ls` inside the test dir before deleting it).
 
-- [ ] **Step 8.6: Configure trusted publisher** (manual)
+- [ ] **Step 8.7: Configure trusted publisher for `@opencall/client`** (manual)
 
 Open https://www.npmjs.com/package/@opencall/client/access → **Trusted Publishers → Add**:
 
@@ -1212,18 +1464,20 @@ Open https://www.npmjs.com/package/@opencall/client/access → **Trusted Publish
 - Workflow filename: `release.yml`
 - Environment: (leave blank)
 
+`@opencall/types`'s trusted publisher is already configured from Phase 1a — nothing to do there.
+
 Future bumps via tag push will publish with provenance.
 
-- [ ] **Step 8.7: Update the release.yml workflow to know about client**
+- [ ] **Step 8.8: Update the release.yml workflow to know about client**
 
 Edit `.github/workflows/release.yml`. The "Determine package" step's case statement currently matches `types-v*` and `server-v*`. Add `client-v*`:
 
 ```yaml
 case "$tag" in
-  types-v*) echo "name=types" >> "$GITHUB_OUTPUT" ;;
-  server-v*) echo "name=server" >> "$GITHUB_OUTPUT" ;;
-  client-v*) echo "name=client" >> "$GITHUB_OUTPUT" ;;
-  *) echo "Unrecognised tag $tag"; exit 1 ;;
+types-v*) echo "name=types" >> "$GITHUB_OUTPUT" ;;
+server-v*) echo "name=server" >> "$GITHUB_OUTPUT" ;;
+client-v*) echo "name=client" >> "$GITHUB_OUTPUT" ;;
+*) echo "Unrecognised tag $tag"; exit 1 ;;
 esac
 ```
 
@@ -1253,21 +1507,22 @@ git push
 git remote set-url --push origin git@github.com:opencall-api/ts-tools.git
 ```
 
-- [ ] **Step 9.2: Tag the release**
+- [ ] **Step 9.2: Tag both releases**
 
 ```bash
+git tag types-v0.1.1
 git tag client-v0.1.0
 git push --tags
 ```
 
-The release workflow will run; it will fail-as-expected since 0.1.0 was already published manually in Task 8. Future bumps publish automatically with provenance.
+The release workflow will run for each tag; both will fail-as-expected since the versions were already published manually in Task 8. Future bumps publish automatically with provenance.
 
 - [ ] **Step 9.3: Open PR**
 
 ```bash
 gh pr create --repo opencall-api/ts-tools --base main --head phase-1b-client \
-  --title "Phase 1b: ship @opencall/client@0.1.0" \
-  --body "Implements Phase 1b of the multi-language tooling strategy. Adds packages/client to the existing ts-tools monorepo, depending on @opencall/types@^0.1.0. Surface: call(), callAndWait(), retrieveChunked(), subscribeStream(), generateClientTypes(), and the opencall-codegen CLI. Published manually as 0.1.0; trusted publishing configured for subsequent automated releases."
+  --title "Phase 1b: ship @opencall/client@0.1.0 + @opencall/types@0.1.1" \
+  --body "Implements Phase 1b of the multi-language tooling strategy. Adds packages/client to the ts-tools monorepo (call(), callAndWait(), retrieveChunked(), subscribeStream(), generateClientTypes(), and the opencall-codegen CLI). Bumps @opencall/types to 0.1.1 to add StreamDescriptor + ResponseEnvelope.stream so subscribeStream is fully type-safe with no casts. Both packages published manually as the bootstrap; trusted publishing covers future automated releases."
 ```
 
 ---
@@ -1277,10 +1532,12 @@ gh pr create --repo opencall-api/ts-tools --base main --head phase-1b-client \
 - [ ] `packages/client/` exists in the monorepo with package.json, tsconfig.json, src/, test/, README.md, CHANGELOG.md, LICENSE.
 - [ ] `bun run build`, `bun run typecheck`, and `bun test` are all green from a cold checkout.
 - [ ] Client tests cover call (6), callAndWait (4), retrieveChunked (5), subscribeStream (3), codegen library (4), codegen CLI (1) — at least 23 new tests total.
-- [ ] `npm view @opencall/client version` returns `0.1.0`.
-- [ ] `npm install @opencall/client` in a scratch project resolves cleanly with `@opencall/types@^0.1.0` as a transitive dep, and ESM imports of all named exports return `function`.
-- [ ] Trusted publisher configured for `@opencall/client` on npmjs.com.
-- [ ] Tag `client-v0.1.0` exists in `opencall-api/ts-tools`.
+- [ ] `npm view @opencall/types version` returns `0.1.1`.
+- [ ] `npm view @opencall/client version` returns `0.1.0` and its `dependencies` declare `@opencall/types: ^0.1.1`.
+- [ ] `npm install @opencall/client` in a scratch project resolves cleanly with `@opencall/types@^0.1.1` as a transitive dep, and ESM imports of all named exports return `function`.
+- [ ] Trusted publisher configured for `@opencall/client` on npmjs.com (`@opencall/types` already had its publisher configured in Phase 1a).
+- [ ] Tags `types-v0.1.1` and `client-v0.1.0` exist in `opencall-api/ts-tools`.
+- [ ] `subscribeStream` returns `StreamDescriptor` from `@opencall/types` with no runtime cast.
 - [ ] `release.yml` recognises `client-v*` tags and the `client` workflow_dispatch option.
 - [ ] PR open against `opencall-api/ts-tools:main`.
 
@@ -1289,6 +1546,5 @@ gh pr create --repo opencall-api/ts-tools --base main --head phase-1b-client \
 - **MQTT/Kafka transport adapters.** `subscribeStream` returns the descriptor; the caller connects via whatever transport the descriptor names. We don't ship adapters in v0.1.0.
 - **Browser-multipart media upload helpers.** The `media: [...]` envelope shape works with native `FormData`; we don't add helpers around it in v0.1.0.
 - **JSON-Schema → TS coverage parity.** The codegen handles the common shapes (object with required, primitives, array, enum, fallback to `unknown`). Edge cases like `oneOf`/`anyOf`/`allOf`, `additionalProperties` schemas, conditional schemas, and refs are deferred to a future bump.
-- **Adding a `stream` field to `ResponseEnvelope` in `@opencall/types`.** Phase 1b uses a cast inside `subscribeStream`; the field exists on the wire but not yet in the static type. Worth a `@opencall/types` 0.1.x patch later.
 - **Promotion to `@opencall/client@1.0.0`.** Happens when the API is declared stable.
 - **Migrating `tests/api/typescript/`** in the spec repo to use `@opencall/client` for its self-tests. Separate effort.
