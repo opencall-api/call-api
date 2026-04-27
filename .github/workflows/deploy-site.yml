@@ -1,14 +1,21 @@
 name: Deploy site to Cloudflare Pages
 
+# NOTE: push trigger is intentionally disabled. Until the
+# CLOUDFLARE_API_TOKEN and CLOUDFLARE_ACCOUNT_ID secrets are
+# configured and the Pages project `opencall-api-site` exists,
+# this workflow only runs on manual dispatch. To re-enable
+# automatic deploys, restore the `push` block below the
+# `workflow_dispatch:` line:
+#
+#   push:
+#     branches: [main]
+#     paths:
+#       - "site/**"
+#       - "specification.md"
+#       - "client.md"
+#       - "comparisons.md"
+#       - ".github/workflows/deploy-site.yml"
 on:
-  push:
-    branches: [main]
-    paths:
-      - "site/**"
-      - "specification.md"
-      - "client.md"
-      - "comparisons.md"
-      - ".github/workflows/deploy-site.yml"
   workflow_dispatch:
 
 permissions:
