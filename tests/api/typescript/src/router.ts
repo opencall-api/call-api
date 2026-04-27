@@ -1,58 +1,19 @@
 import { ZodError } from "zod";
 import { OPERATIONS, getIdempotencyStore, ServerError, type MediaFile } from "./operations";
 import { validateAuth } from "./auth";
-
-interface CallRequest {
-  op: string;
-  args: Record<string, unknown>;
-  ctx?: {
-    requestId?: string;
-    sessionId?: string;
-    idempotencyKey?: string;
-    [key: string]: unknown;
-  };
-}
-
-interface CallResponse {
-  requestId: string;
-  sessionId?: string;
-  state: "complete" | "error" | "accepted" | "pending" | "streaming";
-  result?: unknown;
-  error?: { code: string; message: string; cause?: Record<string, unknown> };
-  location?: { uri: string; auth?: { credentialType: string; credential: string; expiresAt?: number } };
-  retryAfterMs?: number;
-  expiresAt?: number;
-  stream?: { transport: string; location: string; sessionId: string; encoding: string; expiresAt?: number; auth?: { credentialType: string; credential: string; expiresAt?: number } };
-}
+import type { RequestEnvelope, ResponseEnvelope } from "@opencall/types";
+import { domainError } from "@opencall/server";
 
 export function handleCall(
-  envelope: CallRequest,
+  envelope: RequestEnvelope,
   authHeader: string | null = null,
   mediaFile?: MediaFile,
 ): {
   status: number;
-  body: CallResponse;
+  body: ResponseEnvelope;
 } {
   const requestId = envelope.ctx?.requestId || crypto.randomUUID();
   const sessionId = envelope.ctx?.sessionId;
-
-  const base: Pick<CallResponse, "requestId" | "sessionId"> = { requestId };
-  if (sessionId) base.sessionId = sessionId;
-
-  // Validate op is present and a string
-  if (!envelope.op || typeof envelope.op !== "string") {
-    return {
-      status: 400,
-      body: {
-        ...base,
-        state: "error",
-        error: {
-          code: "INVALID_REQUEST",
-          message: "Missing or invalid 'op' field",
-        },
-      },
-    };
-  }
 
   // Look up operation
   const operation = OPERATIONS[envelope.op];
@@ -60,12 +21,8 @@ export function handleCall(
     return {
       status: 400,
       body: {
-        ...base,
-        state: "error",
-        error: {
-          code: "UNKNOWN_OP",
-          message: `Unknown operation: ${envelope.op}`,
-        },
+        ...domainError(requestId, "UNKNOWN_OP", `Unknown operation: ${envelope.op}`),
+        ...(sessionId !== undefined && { sessionId }),
       },
     };
   }
@@ -77,16 +34,11 @@ export function handleCall(
       return {
         status: 410,
         body: {
-          ...base,
-          state: "error",
-          error: {
-            code: "OP_REMOVED",
-            message: `Operation ${envelope.op} has been removed`,
-            cause: {
-              removedOp: envelope.op,
-              replacement: operation.replacement || null,
-            },
-          },
+          ...domainError(requestId, "OP_REMOVED", `Operation ${envelope.op} has been removed`, {
+            removedOp: envelope.op,
+            replacement: operation.replacement || null,
+          }),
+          ...(sessionId !== undefined && { sessionId }),
         },
       };
     }
@@ -99,12 +51,8 @@ export function handleCall(
       return {
         status: authResult.status,
         body: {
-          ...base,
-          state: "error",
-          error: {
-            code: authResult.code,
-            message: authResult.message,
-          },
+          ...domainError(requestId, authResult.code, authResult.message),
+          ...(sessionId !== undefined && { sessionId }),
         },
       };
     }
@@ -116,7 +64,7 @@ export function handleCall(
     const store = getIdempotencyStore();
     const cached = store.get(idempotencyKey);
     if (cached) {
-      return cached as { status: number; body: CallResponse };
+      return cached as { status: number; body: ResponseEnvelope };
     }
   }
 
@@ -128,19 +76,24 @@ export function handleCall(
       if (!streamResult.ok) {
         return {
           status: 200,
-          body: { ...base, state: "error", error: streamResult.error },
+          body: {
+            ...domainError(requestId, streamResult.error.code, streamResult.error.message),
+            ...(sessionId !== undefined && { sessionId }),
+          },
         };
       }
       return {
         status: 202,
         body: {
-          ...base,
+          requestId,
+          ...(sessionId !== undefined && { sessionId }),
           state: "streaming",
           stream: {
             transport: "wss",
             location: `/streams/${streamResult.sessionId}`,
             sessionId: streamResult.sessionId,
             encoding: "json",
+            schema: "",
             expiresAt: Math.floor(Date.now() / 1000) + 3600,
           },
         },
@@ -153,13 +106,17 @@ export function handleCall(
       if (!asyncResult.ok) {
         return {
           status: 200,
-          body: { ...base, state: "error", error: asyncResult.error },
+          body: {
+            ...domainError(requestId, asyncResult.error.code, asyncResult.error.message),
+            ...(sessionId !== undefined && { sessionId }),
+          },
         };
       }
       return {
         status: 202,
         body: {
-          ...base,
+          requestId,
+          ...(sessionId !== undefined && { sessionId }),
           state: "accepted",
           retryAfterMs: 100,
           expiresAt: Math.floor(Date.now() / 1000) + 3600,
@@ -170,18 +127,26 @@ export function handleCall(
     // Sync operations
     const result = operation.handler(envelope.args || {}, mediaFile);
 
-    let response: { status: number; body: CallResponse };
+    let response: { status: number; body: ResponseEnvelope };
 
     if (result.ok) {
       response = {
         status: 200,
-        body: { ...base, state: "complete", result: result.result },
+        body: {
+          requestId,
+          ...(sessionId !== undefined && { sessionId }),
+          state: "complete",
+          result: result.result,
+        },
       };
     } else {
       // Domain error — HTTP 200
       response = {
         status: 200,
-        body: { ...base, state: "error", error: result.error },
+        body: {
+          ...domainError(requestId, result.error.code, result.error.message),
+          ...(sessionId !== undefined && { sessionId }),
+        },
       };
     }
 
@@ -196,12 +161,12 @@ export function handleCall(
       return {
         status: 400,
         body: {
-          ...base,
-          state: "error",
-          error: {
-            code: "VALIDATION_ERROR",
-            message: err.errors.map((e) => `${e.path.join(".")}: ${e.message}`).join("; "),
-          },
+          ...domainError(
+            requestId,
+            "VALIDATION_ERROR",
+            err.errors.map((e) => `${e.path.join(".")}: ${e.message}`).join("; "),
+          ),
+          ...(sessionId !== undefined && { sessionId }),
         },
       };
     }
@@ -210,12 +175,8 @@ export function handleCall(
       return {
         status: err.statusCode,
         body: {
-          ...base,
-          state: "error",
-          error: {
-            code: err.code,
-            message: err.message,
-          },
+          ...domainError(requestId, err.code, err.message),
+          ...(sessionId !== undefined && { sessionId }),
         },
       };
     }
@@ -224,12 +185,12 @@ export function handleCall(
     return {
       status: 500,
       body: {
-        ...base,
-        state: "error",
-        error: {
-          code: "INTERNAL_ERROR",
-          message: err instanceof Error ? err.message : "Unknown error",
-        },
+        ...domainError(
+          requestId,
+          "INTERNAL_ERROR",
+          err instanceof Error ? err.message : "Unknown error",
+        ),
+        ...(sessionId !== undefined && { sessionId }),
       },
     };
   }
