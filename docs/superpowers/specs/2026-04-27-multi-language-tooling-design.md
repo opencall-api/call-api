@@ -46,7 +46,7 @@ call-api/                            ← public spec repo (github.com/dbryar/cal
   comparisons.md
   tests/                             ← language-agnostic conformance suite + reference servers
   tooling/
-    typescript/  → submodule  →  github.com/opencall-api/opencall-ts
+    typescript/  → submodule  →  github.com/opencall-api/ts-tools
     python/      → submodule  →  github.com/opencall-api/opencall-py
     go/          → submodule  →  github.com/opencall-api/opencall-go
     java/        → submodule  →  github.com/opencall-api/opencall-java
@@ -166,13 +166,13 @@ GitHub Actions workflow on push to `main`: build the site (template substitution
 - Create the GitHub org `opencall-api` (the `opencall` org name is taken on GitHub by an unrelated telephony project; `opencall-api` matches the domain `opencall-api.com` and the Maven group `com.opencall-api`). The npm scope stays `@opencall`.
 - **Transfer existing repos** rather than re-creating:
   - `dbryar/call-api` → `opencall-api/call-api` (GitHub Settings → Transfer ownership). GitHub serves a permanent redirect from the old path, so existing clones, submodule pins, README links, and external references continue to resolve.
-  - `dbryar/call-tools-typescript` → `opencall-api/opencall-ts` (transfer, then rename in Settings — or rename first then transfer; either works). The redirect covers the rename too.
+  - `dbryar/call-tools-typescript` → `opencall-api/ts-tools` (transfer, then rename in Settings — or rename first then transfer; either works). The redirect covers the rename too.
   - After transfer, update local remotes (`git remote set-url`) and the submodule URL in `.gitmodules` so future clones pick up the canonical path. The redirects keep working as a safety net.
 - Branch protection on `main`; require PR + CI for any external contribution.
 - README pass: lead with a "canonical docs at https://opencall-api.com/spec — GitHub may block your bot" banner; then install instructions, contribution guide, link to npm `@opencall`.
 - LICENSE pass: confirm Apache-2.0 covers the spec, examples, and tooling consistently.
 - Add `CODE_OF_CONDUCT.md`, `CONTRIBUTING.md`, `SECURITY.md`.
-- Audit `.gitignore` and submodule URLs (`.gitmodules` currently points at `dbryar/call-tools-typescript`; update to `opencall-api/opencall-ts` post-transfer).
+- Audit `.gitignore` and submodule URLs (`.gitmodules` currently points at `dbryar/call-tools-typescript`; update to `opencall-api/ts-tools` post-transfer).
 - **Move the canonical website into the spec repo and onto Cloudflare Pages:**
   - Relocate `demo/www/` → `site/` at repo root. The current Firebase `target: www` brochure becomes the apex landing of `opencall-api.com`.
   - Add a markdown-to-HTML build step (e.g. a small Bun/Node script using `marked` + a minimal layout, or a static-site generator already aligned with the rest of the project) that renders `specification.md`, `client.md`, `comparisons.md` and the tooling submodule READMEs into `site/dist/spec/...`.
@@ -199,10 +199,10 @@ The TS submodule needs both:
 
 **Release plumbing (one-time per repo):**
 
-1. `opencall-api/opencall-ts` exists (via Phase 0 transfer + rename of `dbryar/call-tools-typescript`); `.gitmodules` in the spec repo updated to the canonical URL.
+1. `opencall-api/ts-tools` exists (via Phase 0 transfer + rename of `dbryar/call-tools-typescript`); `.gitmodules` in the spec repo updated to the canonical URL.
 2. Branch protection on `main`.
 3. `.github/workflows/release.yml` triggers on `v*.*.*` tag push, runs build + tests, then `npm publish --provenance --access public` via OIDC.
-4. npm trusted publisher configured: GitHub org `opencall-api`, repo `opencall-ts`, workflow `release.yml`, npm scope `@opencall`.
+4. npm trusted publisher configured: GitHub org `opencall-api`, repo `ts-tools`, workflow `release.yml`, npm scope `@opencall`.
 5. README polished for the npm package page (it renders standalone, separate from the spec repo README).
 6. CHANGELOG seeded; first manual publish to validate the pipeline; subsequent publishes via tag push only.
 

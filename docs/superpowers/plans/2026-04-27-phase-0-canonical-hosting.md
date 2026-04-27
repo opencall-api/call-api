@@ -4,7 +4,7 @@
 
 **Goal:** Move the OpenCALL spec repo to its canonical home in a new GitHub org, relocate the brochure site into the repo, render the spec docs as an agent-readable site at `https://opencall-api.com`, and deploy it on Cloudflare Pages so SDK READMEs and package metadata can point at a stable, bot-friendly URL.
 
-**Architecture:** The spec repo `dbryar/call-api` is transferred (not re-created) to a new GitHub org `opencall-api`, preserving redirects. The submodule repo `dbryar/call-tools-typescript` is transferred and renamed to `opencall-api/opencall-ts` in the same operation. The brochure source moves from `demo/www/` to `site/` at the repo root. A small Bun-based build script renders the existing markdown docs (`specification.md`, `client.md`, `comparisons.md`) into HTML at `/spec/...`, copies the raw markdown into `/spec/*.md` for agents, and writes a `.well-known/opencall-spec` JSON manifest. Cloudflare Pages, fed from `site/dist/`, serves the apex with bots permitted.
+**Architecture:** The spec repo `dbryar/call-api` is transferred (not re-created) to a new GitHub org `opencall-api`, preserving redirects. The submodule repo `dbryar/call-tools-typescript` is transferred and renamed to `opencall-api/ts-tools` in the same operation. The brochure source moves from `demo/www/` to `site/` at the repo root. A small Bun-based build script renders the existing markdown docs (`specification.md`, `client.md`, `comparisons.md`) into HTML at `/spec/...`, copies the raw markdown into `/spec/*.md` for agents, and writes a `.well-known/opencall-spec` JSON manifest. Cloudflare Pages, fed from `site/dist/`, serves the apex with bots permitted.
 
 **Tech Stack:**
 
@@ -62,12 +62,12 @@ Manual step. Open `https://github.com/account/organizations/new`, choose the **F
 
 Manual step. Open `https://github.com/dbryar/call-api/settings`, scroll to the *Danger Zone*, click **Transfer ownership**, set the new owner to `opencall-api`, and confirm by typing the repo name. After transfer, the canonical URL becomes `https://github.com/opencall-api/call-api`. GitHub serves a permanent redirect from the old path.
 
-- [ ] **Step 1.3: User transfers and renames `dbryar/call-tools-typescript` → `opencall-api/opencall-ts`**
+- [ ] **Step 1.3: User transfers and renames `dbryar/call-tools-typescript` → `opencall-api/ts-tools`**
 
 Manual step. Two operations. Pick either order:
 
-- **Option A (rename then transfer):** Settings → rename to `opencall-ts` → Settings → Transfer ownership → `opencall-api`.
-- **Option B (transfer then rename):** Settings → Transfer ownership → `opencall-api` → Settings → rename to `opencall-ts`.
+- **Option A (rename then transfer):** Settings → rename to `ts-tools` → Settings → Transfer ownership → `opencall-api`.
+- **Option B (transfer then rename):** Settings → Transfer ownership → `opencall-api` → Settings → rename to `ts-tools`.
 
 Either way, the redirect chain remains intact.
 
@@ -77,10 +77,10 @@ Run (replace `gh` with the GitHub CLI authenticated as the user):
 
 ```bash
 gh repo view opencall-api/call-api --json name,owner,defaultBranchRef
-gh repo view opencall-api/opencall-ts --json name,owner,defaultBranchRef
+gh repo view opencall-api/ts-tools --json name,owner,defaultBranchRef
 ```
 
-Expected: both commands return JSON with `"owner": {"login": "opencall-api"}` and `"name"` matching `call-api` and `opencall-ts` respectively.
+Expected: both commands return JSON with `"owner": {"login": "opencall-api"}` and `"name"` matching `call-api` and `ts-tools` respectively.
 
 - [ ] **Step 1.5: Verify GitHub redirects are in place**
 
@@ -118,7 +118,7 @@ Edit `.gitmodules` so it reads:
 ```
 [submodule "tooling/typescript"]
 	path = tooling/typescript
-	url = git@github.com:opencall-api/opencall-ts.git
+	url = git@github.com:opencall-api/ts-tools.git
 ```
 
 - [ ] **Step 2.3: Sync the submodule remote**
@@ -128,7 +128,7 @@ git submodule sync tooling/typescript
 git -C tooling/typescript remote -v
 ```
 
-Expected: the submodule's `origin` now points at `git@github.com:opencall-api/opencall-ts.git`.
+Expected: the submodule's `origin` now points at `git@github.com:opencall-api/ts-tools.git`.
 
 - [ ] **Step 2.4: Verify both remotes still fetch successfully**
 
@@ -1229,7 +1229,7 @@ Expected: push succeeds. The deploy-site workflow runs but should be a no-op for
 ## Done When
 
 - [ ] `git remote -v` shows `git@github.com:opencall-api/call-api.git` for `origin`.
-- [ ] `git config --file .gitmodules --get submodule.tooling/typescript.url` shows `git@github.com:opencall-api/opencall-ts.git`.
+- [ ] `git config --file .gitmodules --get submodule.tooling/typescript.url` shows `git@github.com:opencall-api/ts-tools.git`.
 - [ ] `CODE_OF_CONDUCT.md`, `CONTRIBUTING.md`, `SECURITY.md` exist at repo root.
 - [ ] `README.md` opens with the canonical-docs banner.
 - [ ] `site/` exists at repo root; `demo/www/` no longer exists.
