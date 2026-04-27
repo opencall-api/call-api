@@ -1,8 +1,17 @@
 {
   "name": "@opencall/site",
   "private": true,
+  "type": "module",
   "scripts": {
     "dev": "bun --hot src/server.ts",
-    "start": "bun src/server.ts"
+    "start": "bun src/server.ts",
+    "render": "bun scripts/render-spec.ts",
+    "manifest": "bun scripts/build-manifest.ts",
+    "build": "bash build.sh && bun run render && bun run manifest",
+    "test": "bun test"
+  },
+  "devDependencies": {
+    "marked": "^14.1.0",
+    "@types/bun": "latest"
   }
 }
