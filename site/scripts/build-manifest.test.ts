@@ -9,8 +9,8 @@ test("manifest declares site base and callVersion", () => {
 
 test("manifest lists spec html and markdown URLs", () => {
   const m = buildManifest({ siteBase: "https://opencall-api.com", callVersion: "2026-02-10" })
-  expect(m.spec.html).toBe("https://opencall-api.com/spec/")
-  expect(m.spec.markdown).toBe("https://opencall-api.com/spec/index.md")
+  expect(m.spec.html).toBe("https://opencall-api.com/spec")
+  expect(m.spec.markdown).toBe("https://opencall-api.com/spec.md")
 })
 
 test("manifest lists guides with both formats", () => {
@@ -19,6 +19,6 @@ test("manifest lists guides with both formats", () => {
   expect(names).toEqual(["client", "comparisons"])
   for (const guide of m.guides) {
     expect(guide.html.startsWith("https://opencall-api.com/spec/")).toBe(true)
-    expect(guide.markdown.endsWith(".md")).toBe(true)
+    expect(guide.markdown).toBe(`https://opencall-api.com/${guide.name}.md`)
   }
 })

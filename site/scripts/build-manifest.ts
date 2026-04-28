@@ -20,19 +20,19 @@ export function buildManifest(input: ManifestInput): Manifest {
     siteBase,
     callVersion,
     spec: {
-      html: `${siteBase}/spec/`,
-      markdown: `${siteBase}/spec/index.md`,
+      html: `${siteBase}/spec`,
+      markdown: `${siteBase}/spec.md`,
     },
     guides: [
       {
         name: "client",
-        html: `${siteBase}/spec/client/`,
-        markdown: `${siteBase}/spec/client.md`,
+        html: `${siteBase}/spec/client`,
+        markdown: `${siteBase}/client.md`,
       },
       {
         name: "comparisons",
-        html: `${siteBase}/spec/comparisons/`,
-        markdown: `${siteBase}/spec/comparisons.md`,
+        html: `${siteBase}/spec/comparisons`,
+        markdown: `${siteBase}/comparisons.md`,
       },
     ],
     packages: [

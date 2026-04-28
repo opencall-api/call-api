@@ -1,60 +1,58 @@
-import { marked } from "marked"
-import { mkdir, readFile, writeFile, copyFile } from "node:fs/promises"
-import { dirname, resolve } from "node:path"
-import { layout } from "./layout"
-
-interface SpecEntry {
-  source: string
-  htmlOut: string
-  rawOut: string
-  title: string
-}
+import { mkdir, copyFile, readFile, writeFile } from "node:fs/promises"
+import { resolve } from "node:path"
 
 const REPO_ROOT = resolve(import.meta.dir, "..", "..")
-const DIST = resolve(REPO_ROOT, "site", "dist")
+const SITE = resolve(REPO_ROOT, "site")
+const DIST = resolve(SITE, "dist")
+const SRC = resolve(SITE, "src")
 
-const ENTRIES: SpecEntry[] = [
-  {
-    source: resolve(REPO_ROOT, "specification.md"),
-    htmlOut: resolve(DIST, "spec", "index.html"),
-    rawOut: resolve(DIST, "spec", "index.md"),
-    title: "OpenCALL Specification",
-  },
-  {
-    source: resolve(REPO_ROOT, "client.md"),
-    htmlOut: resolve(DIST, "spec", "client", "index.html"),
-    rawOut: resolve(DIST, "spec", "client.md"),
-    title: "OpenCALL Client Guide",
-  },
-  {
-    source: resolve(REPO_ROOT, "comparisons.md"),
-    htmlOut: resolve(DIST, "spec", "comparisons", "index.html"),
-    rawOut: resolve(DIST, "spec", "comparisons.md"),
-    title: "OpenCALL Comparisons",
-  },
+interface SpecDoc {
+  source: string
+  rawOut: string
+}
+
+const DOCS: SpecDoc[] = [
+  { source: resolve(REPO_ROOT, "specification.md"), rawOut: resolve(DIST, "spec.md") },
+  { source: resolve(REPO_ROOT, "client.md"), rawOut: resolve(DIST, "client.md") },
+  { source: resolve(REPO_ROOT, "comparisons.md"), rawOut: resolve(DIST, "comparisons.md") },
 ]
 
-export function renderMarkdown(source: string): string {
-  return marked.parse(source, { async: false }) as string
-}
+export async function renderSite(): Promise<void> {
+  await mkdir(DIST, { recursive: true })
 
-async function renderEntry(entry: SpecEntry): Promise<void> {
-  const md = await readFile(entry.source, "utf8")
-  const body = renderMarkdown(md)
-  const html = layout(entry.title, body)
-  await mkdir(dirname(entry.htmlOut), { recursive: true })
-  await writeFile(entry.htmlOut, html, "utf8")
-  await mkdir(dirname(entry.rawOut), { recursive: true })
-  await copyFile(entry.source, entry.rawOut)
-  console.log(`rendered ${entry.source} → ${entry.htmlOut} (+raw)`)
-}
-
-async function main(): Promise<void> {
-  for (const entry of ENTRIES) {
-    await renderEntry(entry)
+  for (const doc of DOCS) {
+    await copyFile(doc.source, doc.rawOut)
+    console.log(`copied ${doc.source} → ${doc.rawOut}`)
   }
+
+  const shellHtml = await readFile(resolve(SRC, "spec-shell.html"), "utf8")
+  const shellRoutes = [
+    resolve(DIST, "spec", "index.html"),
+    resolve(DIST, "spec", "client", "index.html"),
+    resolve(DIST, "spec", "comparisons", "index.html"),
+  ]
+  for (const out of shellRoutes) {
+    await mkdir(resolve(out, ".."), { recursive: true })
+    await writeFile(out, shellHtml, "utf8")
+    console.log(`wrote ${out}`)
+  }
+
+  const result = await Bun.build({
+    entrypoints: [resolve(SRC, "spec.ts")],
+    outdir: resolve(DIST, "spec"),
+    target: "browser",
+    format: "esm",
+    minify: true,
+  })
+
+  if (!result.success) {
+    for (const log of result.logs) console.error(log)
+    throw new Error("Bun.build failed for site/src/spec.ts")
+  }
+
+  console.log(`bundled ${resolve(DIST, "spec", "spec.js")}`)
 }
 
 if (import.meta.main) {
-  await main()
+  await renderSite()
 }

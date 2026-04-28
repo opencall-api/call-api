@@ -1,2 +1,3 @@
 https://www.opencall-api.com/* https://opencall-api.com/:splat 301!
-/spec /spec/ 301
+/specification /spec 301
+/specification.md /spec.md 301
