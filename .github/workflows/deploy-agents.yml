@@ -1,0 +1,38 @@
+name: Deploy agents site to Cloudflare Pages
+
+# NOTE: push trigger is intentionally disabled until the first
+# manual deploy succeeds and the custom domain is bound. To
+# re-enable automatic deploys, restore the `push` block below
+# the `workflow_dispatch:` line:
+#
+#   push:
+#     branches: [main]
+#     paths:
+#       - "demo/agents/**"
+#       - ".github/workflows/deploy-agents.yml"
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  deployments: write
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Checkout repo
+        uses: actions/checkout@v4
+
+      - name: Build agents site
+        env:
+          API_URL: https://api.opencall-api.com
+        run: bash demo/agents/build.sh
+
+      - name: Deploy to Cloudflare Pages
+        uses: cloudflare/wrangler-action@v3
+        with:
+          apiToken: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          accountId: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+          command: pages deploy demo/agents/dist --project-name=opencall-agent-site --branch=main
