@@ -19,4 +19,8 @@ mkdir -p "${DIST}"
 sed -e "s|{{API_URL}}|${API_URL}|g" \
     "${SCRIPT_DIR}/index.md" > "${DIST}/index.md"
 
+# Copy Cloudflare Pages config files (no-op on Firebase, used on Cloudflare)
+cp "${SCRIPT_DIR}/_headers" "${DIST}/_headers"
+cp "${SCRIPT_DIR}/_redirects" "${DIST}/_redirects"
+
 echo "==> agents site built to ${DIST}"
