@@ -2,7 +2,7 @@
 
 ## Overview
 
-OpenCALL is an attempt to unify human-oriented APIs and agent-style tool invocation into a single operation contract using a uniform envelope.
+OpenCALL is a transport-neutral operation protocol. It unifies human-oriented APIs and agent-style tool invocation into a single operation contract using a uniform envelope, independent of how that envelope reaches the server.
 
 It is designed to serve both:
 
@@ -78,6 +78,86 @@ The version prefix is part of the `op` name — it flows through the envelope, r
 All operations start at `v1`. When a breaking change is needed, a new version is introduced (e.g. `v2:orders.getItem`) while the old version remains available until its sunset date. See [Schema Evolution](#schema-evolution) for what constitutes a breaking change.
 
 If a namespace is not needed for a simple API, the operation name can be just `v1:getItem`. The version prefix is still required.
+
+---
+
+## Path-Based Operation Endpoint
+
+Servers MAY expose non-mutating operations at a path-addressed endpoint in addition to `POST /call`. The path-based form maps the operation name into a URL so that infrastructure caches, edge proxies, per-route policy, and standard HTTP observability tooling can operate on operations as first-class resources.
+
+### Endpoint
+
+```
+POST /ops/{version}/{path}
+```
+
+`{version}` is the operation's version prefix (e.g. `v1`). `{path}` is the operation name with the version prefix removed and `.` replaced by `/`.
+
+| Operation name           | Path                          |
+| ------------------------ | ----------------------------- |
+| `v1:user.auth.login`     | `/ops/v1/user/auth/login`     |
+| `v1:orders.getItem`      | `/ops/v1/orders/getItem`      |
+| `v1:device.readPosition` | `/ops/v1/device/readPosition` |
+
+The mapping is built by splitting the operation name on `:` to extract the version, then splitting the remainder on `.` and joining the segments with `/`. Implementations MUST use standard URL construction tooling rather than ad-hoc string templating. The `:` and `.` separators are structural; they MUST NOT be percent-encoded into the URL path.
+
+The `/ops/{requestId}` and `/ops/{requestId}/chunks` endpoints use `GET`, so they do not collide with this `POST` path.
+
+### Request Body
+
+The request body is the canonical envelope with `op` omitted (the operation is implicit in the URL):
+
+```json
+{
+  "args": {},
+  "media": [],
+  "ctx": {},
+  "auth": {}
+}
+```
+
+If the body includes an `op` field that disagrees with the URL, the server MUST reject the request with `400` and an `INVALID_REQUEST` error.
+
+### Eligibility
+
+The path-based endpoint is a service-level binding capability. Servers that expose it MUST expose it for every operation in the registry — clients can rely on the path mapping working for any `op` they discover via `/.well-known/ops`. Whether the server supports this binding at all is declared at the top of the registry response in the `endpoints` array — see [Self-Description Endpoint](#self-description-endpoint).
+
+Path-based addressing is independent of execution model. Async and streaming operations return the same `202` + `location` or `202` + `stream` envelopes they would return via `/call`. Side-effecting operations work the same way too — `POST` is not cached by HTTP intermediaries by default, and per-operation cacheability is governed by the registry's `cache.enabled`, which MUST be `false` for side-effecting operations regardless of which endpoint invoked them.
+
+### Cache Key and ETag
+
+For operations with `cache.enabled: true` in the registry, the server MUST set an `ETag` header on path-based responses. The ETag is the SHA-256 of the deterministic concatenation of the operation name and the canonicalized args:
+
+```
+ETag = "\"sha256:" + hex(sha256(opName + canonicalize(args))) + "\""
+```
+
+Where `opName` is the full version-prefixed operation name (e.g. `v1:user.auth.login`) and `canonicalize(args)` produces a deterministic byte sequence using the rules below.
+
+### Canonicalization Rules
+
+The args are canonicalized to a UTF-8 byte sequence under these rules:
+
+- Object keys are sorted lexicographically by Unicode code point
+- All insignificant whitespace is removed
+- String values use the same JSON escape sequences they were submitted with — implementations MUST NOT re-escape (e.g. `"A"` MUST NOT be normalized to `"A"`)
+- **Numbers preserve their submitted textual form.** A value submitted as `47` and a value submitted as `47.00` produce different cache keys. Implementations MUST NOT reformat numeric tokens before hashing
+- `null` is preserved — a missing key and a `null`-valued key produce different hashes
+- Arrays preserve their submitted order
+
+This is a stricter form of [RFC 8785 JCS](https://www.rfc-editor.org/rfc/rfc8785) — JCS normalizes numbers via ECMAScript serialization, which OpenCALL does not, because numeric precision is sometimes semantically meaningful (currency, scientific measurements) and the cache key must reflect what the caller sent.
+
+### Conditional Requests
+
+Clients MAY send `If-None-Match` with a previously-received ETag. When the server's current representation matches, it MUST respond with `304 Not Modified` and an empty body. Otherwise it returns `200` with the new representation and a new ETag.
+
+### Cache-Control
+
+Servers SHOULD set `Cache-Control` on path-based responses according to the operation's registry `cache` block. See [Operation Registry](#operation-registry-source-of-truth).
+
+### Response
+
+The response body and status codes match the synchronous behavior of `/call` — `200` with the canonical envelope on success, `4xx`/`5xx` with the canonical error envelope on failure. The path-based endpoint does not change response semantics; it only changes addressing.
 
 ---
 
@@ -206,7 +286,12 @@ All protocol-level responses SHOULD return this canonical envelope whenever a pa
     }
   },
   "expiresAt": "integer (Unix epoch seconds, optional)",
-  "retryAfterMs": 500
+  "retryAfterMs": 500,
+  "meta": {
+    "op": "string",
+    "durationMs": "integer",
+    "tenantId": "string (optional)"
+  }
 }
 ```
 
@@ -259,6 +344,16 @@ All protocol-level responses SHOULD return this canonical envelope whenever a pa
 - `expiresAt`
   Optional. Integer (Unix epoch seconds) indicating when the operation instance and its results (including chunks) will expire. After this time, `GET /ops/{requestId}` and chunk endpoints return `404`. Present on `state=accepted`, `state=pending`, and `state=complete` responses. Allows clients and agents to know how long they have to poll or retrieve results.
 
+- `meta`
+  Optional observability block. When present:
+  - `meta.op` — Required. The fully-qualified operation name as recognized by the server (e.g. `v1:user.auth.login`). This is the canonical name used for span naming, dashboarding, and rate-limit attribution. Servers SHOULD always include this when emitting `meta`.
+  - `meta.durationMs` — Optional. Integer milliseconds the server spent producing this response, measured from envelope receipt to response serialization. Excludes network and queueing time outside the server's control.
+  - `meta.tenantId` — Optional. The tenant identity associated with this invocation, when the server resolves authentication into a tenant. Useful for multi-tenant telemetry and audit logs.
+
+  The `meta` block is response-only metadata. Servers MUST NOT use `meta` to carry result data or error information — `result` and `error` are the only fields that carry domain payload. Servers MAY emit `meta` on any state, including `error`.
+
+  Operations declare their telemetry configuration in the registry `telemetry` block — see [Operation Registry](#operation-registry-source-of-truth) for span naming, attribute capture, and sensitive field redaction.
+
 ---
 
 ## Execution Models
@@ -271,6 +366,18 @@ The spec supports three execution models. The operation registry declares which 
 2. Server returns `200` with `state=complete` and `result`
 
 Used when the operation is expected to complete within the caller's `timeoutMs` hint. It is up to the controller implementation to determine what "expected" means — it could be based on historical execution times, a static threshold, or dynamic load conditions.
+
+#### Synchronous Timeout Behavior
+
+Operations declare a maximum synchronous execution time and an `onTimeout` policy in the registry's `sync` block. When server-side execution exceeds `sync.maxMs`, the server applies the declared policy:
+
+- `fail` — Server returns `state=error` with code `TIMEOUT`. The caller MUST NOT retry automatically; a retry is appropriate only if the caller has reason to believe the timeout was transient (e.g. via observed system health, not blind retry).
+- `retry` — Server returns `503 Service Unavailable` with `retryAfterMs`. The caller SHOULD retry after the indicated delay. Use this when the timeout reflects transient pressure that a brief backoff is expected to clear.
+- `escalate` — Server transitions the in-flight operation to async execution and returns `202` with `state=accepted` and a polling `location`. The caller polls `GET /ops/{requestId}` until completion. Use this when the operation can complete given more time without caller intervention.
+
+Operations that declare `executionModel: "sync"` MUST declare an `onTimeout` policy. Operations declared as `async` or `stream` do not use `onTimeout` — async has its own polling/expiry model and stream has its own lifetime model.
+
+The caller's `ctx.timeoutMs` hint is advisory and applies only to the caller's willingness to wait for a synchronous reply on the wire. It does not override the server-side `sync.maxMs` policy. A server SHOULD honor an aggressive `ctx.timeoutMs` (e.g. 200ms when its own `sync.maxMs` is 2000ms) by abandoning synchronous waiting for that caller, but it MAY still apply `onTimeout: escalate` so the operation continues server-side and the caller can poll.
 
 ### Asynchronous
 
@@ -303,21 +410,22 @@ The system MUST return a descriptive payload whenever possible.
 
 ### Status Code Usage
 
-| Status | Meaning                                                                                                                                                                |
-| ------ | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| 200    | Successful synchronous completion.                                                                                                                                     |
-| 202    | Accepted — result not yet ready, or resource at a location requiring credentials or a transport change. See note below.                                                |
-| 303    | Resource available via HTTP(S) redirect that can be safely auto-followed using standard client behavior. See note below.                                               |
-| 400    | Invalid operation — the request is malformed, the operation does not exist, or the arguments fail schema validation. The error payload describes why.                  |
-| 401    | Authentication invalid.                                                                                                                                                |
-| 403    | Authentication valid but insufficient.                                                                                                                                 |
-| 404    | Resource not found — the requested operation result, chunk, or media object does not exist or has expired.                                                             |
-| 405    | Method not allowed — the HTTP method is not supported for the requested endpoint.                                                                                      |
-| 410    | Operation removed — the operation existed but has been removed (past its sunset date). The error payload includes `replacement` if a successor exists.                 |
-| 429    | Too many requests — the caller is polling too frequently. The `retryAfterMs` field indicates how long to wait before retrying. See note below.                        |
-| 500    | Internal failure with full error payload.                                                                                                                              |
-| 502    | Upstream dependency failure.                                                                                                                                           |
-| 503    | Service unavailable.                                                                                                                                                   |
+| Status | Meaning                                                                                                                                                |
+| ------ | ------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| 200    | Successful synchronous completion.                                                                                                                     |
+| 202    | Accepted — result not yet ready, or resource at a location requiring credentials or a transport change. See note below.                                |
+| 303    | Resource available via HTTP(S) redirect that can be safely auto-followed using standard client behavior. See note below.                               |
+| 304    | Not Modified — used by the path-based endpoint when a conditional `If-None-Match` request matches the current ETag. Body MUST be empty.                |
+| 400    | Invalid operation — the request is malformed, the operation does not exist, or the arguments fail schema validation. The error payload describes why.  |
+| 401    | Authentication invalid.                                                                                                                                |
+| 403    | Authentication valid but insufficient.                                                                                                                 |
+| 404    | Resource not found — the requested operation result, chunk, or media object does not exist or has expired.                                             |
+| 405    | Method not allowed — the HTTP method is not supported for the requested endpoint.                                                                      |
+| 410    | Operation removed — the operation existed but has been removed (past its sunset date). The error payload includes `replacement` if a successor exists. |
+| 429    | Too many requests — the caller is polling too frequently. The `retryAfterMs` field indicates how long to wait before retrying. See note below.         |
+| 500    | Internal failure with full error payload.                                                                                                              |
+| 502    | Upstream dependency failure.                                                                                                                           |
+| 503    | Service unavailable.                                                                                                                                   |
 
 ### Notes
 
@@ -339,13 +447,17 @@ The system MUST return a descriptive payload whenever possible.
 
 ## Caching
 
-OpenCALL does not depend on HTTP boundary caching (proxy/CDN) as a primary mechanism. The `POST /call` endpoint is not cacheable by HTTP intermediaries by design — operation semantics live in the envelope, not the URL or method.
-
-Caching is an orthogonal concern. Implementers choose the strategy that fits their use case:
+The `POST /call` endpoint is not cacheable by HTTP intermediaries by design — operation semantics live in the envelope, not the URL or method. Caching is an orthogonal concern handled by one of three mechanisms, declared per-operation in the registry's `cache` block.
 
 ### Server-Side Operation Cache
 
-The server MAY cache results internally, keyed by operation name and arguments. The `cachingPolicy` field in the registry declares caching intent per operation. This is the most common and predictable caching model — the server controls cache keys, invalidation, and TTL.
+The server MAY cache results internally, keyed by operation name and arguments. The `cache` block in the registry declares caching intent per operation — TTL, scope, vary dimensions, and invalidation tags. The server controls cache keys, invalidation, and TTL; HTTP intermediaries see only `POST /call` and treat each invocation as uncacheable.
+
+### Path-Based Endpoint (Infrastructure-Cacheable)
+
+When the registry's top-level `endpoints` array includes `"path"`, callers MAY invoke any operation via [`POST /ops/{version}/{path}`](#path-based-operation-endpoint). For operations where `cache.enabled: true`, the server emits an `ETag` derived from the canonicalized operation name and args, plus `Cache-Control` headers driven by the registry's `cache` block. Edge proxies and CDNs that understand body-aware POST caching can cache responses at the infrastructure layer; clients can use `If-None-Match` to receive `304 Not Modified`.
+
+Cacheability is per-operation, not per-endpoint: it follows `cache.enabled`, which MUST be `false` for side-effecting operations. The path binding makes responses *addressable* in cache infrastructure; the registry decides whether they are *cached*.
 
 ### Location Indirection (Cacheable Resources)
 
@@ -355,7 +467,7 @@ This pattern naturally separates the invocation (which is operation-specific) fr
 
 ### When Caching Is Not Relevant
 
-Many operations are inherently uncacheable — commands, side-effecting mutations, real-time queries. OpenCALL does not impose caching where it would be incorrect. The `cachingPolicy` field exists so that the registry can express this explicitly per operation.
+Many operations are inherently uncacheable — commands, side-effecting mutations, real-time queries. OpenCALL does not impose caching where it would be incorrect. The `cache` block exists so that the registry can express `enabled: false` explicitly per operation.
 
 ---
 
@@ -544,7 +656,13 @@ A pre-uploaded video is referenced by URI:
 {
   "op": "v1:media.transcode",
   "args": { "outputFormat": "h265", "quality": "high" },
-  "media": [{ "name": "source", "mimeType": "video/mp4", "ref": "https://uploads.example.com/obj/abc123" }],
+  "media": [
+    {
+      "name": "source",
+      "mimeType": "video/mp4",
+      "ref": "https://uploads.example.com/obj/abc123"
+    }
+  ],
   "ctx": {
     "requestId": "660e8400-e29b-41d4-a716-446655440001"
   }
@@ -559,8 +677,18 @@ Operations that accept media declare a `mediaSchema` in the registry:
 {
   "op": "v1:identity.verify",
   "mediaSchema": [
-    { "name": "selfie", "required": true, "acceptedTypes": ["image/jpeg", "image/png"], "maxBytes": 10485760 },
-    { "name": "bankStatement", "required": true, "acceptedTypes": ["application/pdf"], "maxBytes": 52428800 }
+    {
+      "name": "selfie",
+      "required": true,
+      "acceptedTypes": ["image/jpeg", "image/png"],
+      "maxBytes": 10485760
+    },
+    {
+      "name": "bankStatement",
+      "required": true,
+      "acceptedTypes": ["application/pdf"],
+      "maxBytes": 52428800
+    }
   ]
 }
 ```
@@ -806,86 +934,242 @@ The version-prefixed namespace (`v1:namespace.operation`) naturally supports mul
 
 The generation mechanism is an implementation detail. The spec requires only that `GET /.well-known/ops` returns a conformant registry — how it gets built is up to the developer.
 
-### Registry Entry Fields
-
-Each operation is defined in code with:
-
-- `op` name (version-prefixed: `v1:namespace.operation`)
-- argument schema (JSON Schema)
-- result schema (JSON Schema)
-- media schema (accepted attachments, for operations that accept media)
-- frame schema (JSON Schema, for streaming operations)
-- side-effecting flag
-- idempotency requirement
-- execution model (`sync`, `async`, or `stream`)
-- max synchronous execution time
-- chunk support flag
-- result TTL as `ttlSeconds` (for async operations)
-- auth scopes
-- caching policy
-- supported transports (for streaming operations)
-- supported encodings (for streaming operations)
-- stream TTL as `ttlSeconds` (for streaming operations)
-- frame integrity flag (for streaming operations)
-- deprecated flag (optional, defaults to `false`)
-- sunset date (ISO 8601 `YYYY-MM-DD`, present only when deprecated)
-- replacement operation name (present only when deprecated)
-
-### Registry Entry Example
+### Registry Entry Shape
 
 ```json
 {
-  "op": "v1:subscribeToStream",
+  "op": "v1:namespace.operation",
+  "executionModel": "sync | async | stream",
+  "sideEffecting": false,
   "argsSchema": {},
   "resultSchema": {},
+  "mediaSchema": [],
   "frameSchema": {},
-  "sideEffecting": false,
-  "idempotencyRequired": false,
-  "maxSyncMs": 500,
-  "executionModel": "stream",
-  "supportedTransports": ["wss", "mqtt", "quic"],
-  "supportedEncodings": ["protobuf", "json"],
-  "authScopes": ["device:read"],
-  "cachingPolicy": "none",
-  "ttlSeconds": 3600,
-  "frameIntegrity": false
+  "authScopes": [],
+  "sync": {
+    "maxMs": 500,
+    "onTimeout": "fail | retry | escalate"
+  },
+  "idempotency": {
+    "supported": false,
+    "required": false,
+    "keyHeader": "Idempotency-Key",
+    "ttlSeconds": 86400
+  },
+  "cache": {
+    "enabled": false,
+    "ttl": 0,
+    "scope": "private | public | tenant",
+    "vary": [],
+    "tags": []
+  },
+  "telemetry": {
+    "spanName": "namespace.operation",
+    "attributes": [],
+    "sensitive": []
+  },
+  "stream": {
+    "supportedTransports": [],
+    "supportedEncodings": [],
+    "ttlSeconds": 3600,
+    "frameIntegrity": false
+  },
+  "ttlSeconds": 0,
+  "deprecated": false,
+  "sunset": "YYYY-MM-DD",
+  "replacement": "v2:namespace.operation"
 }
 ```
 
-### Deprecated Registry Entry Example
+### Identity and Discovery
 
-When an operation is deprecated, the registry entry includes `deprecated`, `sunset`, and `replacement`:
+- `op` — Required. Fully-qualified operation name with version prefix (`v1:namespace.operation`).
+- `executionModel` — Required. One of `sync`, `async`, `stream`. Determines response semantics: `sync` returns a result on the same call, `async` returns 202 with a polling location, `stream` returns 202 with stream metadata.
+- `sideEffecting` — Required. `true` if invoking the operation mutates state. Side-effecting operations MUST set `cache.enabled: false` and SHOULD set `idempotency.supported: true`.
+
+The endpoints through which an operation can be invoked (`POST /call` and optionally `POST /ops/{version}/{path}`) are a service-level capability declared in the top-level `endpoints` field of the registry response — see [Self-Description Endpoint](#self-description-endpoint). Per-operation endpoint declarations are not part of the registry entry: when the server supports the path binding, it supports it for every operation in the registry.
+
+### Schemas
+
+- `argsSchema` — Required. JSON Schema for the request `args`.
+- `resultSchema` — Required for `sync` and `async`. JSON Schema for the response `result`.
+- `mediaSchema` — Optional. Array describing accepted media attachments. See [Media Ingress](#media-ingress) for the entry shape.
+- `frameSchema` — Required when `executionModel: "stream"`. JSON Schema for each stream frame.
+
+### Auth
+
+- `authScopes` — Required. Array of scopes the caller must hold. Empty array means no scope required (still subject to authentication).
+
+### Synchronous Execution
+
+The `sync` block is required when `executionModel: "sync"`, optional otherwise.
+
+- `sync.maxMs` — Required. Maximum server-side wall time before the `onTimeout` policy applies.
+- `sync.onTimeout` — Required. One of:
+  - `"fail"` — Return `state=error` with code `TIMEOUT`. Caller does not retry automatically.
+  - `"retry"` — Return `503` with `retryAfterMs`. Caller retries after the indicated delay.
+  - `"escalate"` — Transition the in-flight operation to async and return `202` with a polling `location`. Caller polls `GET /ops/{requestId}` until completion.
+
+  See [Synchronous Timeout Behavior](#synchronous-timeout-behavior).
+
+### Idempotency
+
+The `idempotency` block declares whether the operation supports caller-provided idempotency keys and how those keys are accepted.
+
+- `idempotency.supported` — Required when present. `true` if the server deduplicates by an idempotency key.
+- `idempotency.required` — Required when present. `true` if the caller MUST supply a key for this operation. Side-effecting operations SHOULD set this to `true`.
+- `idempotency.keyHeader` — Optional. The HTTP header name the server reads the key from when invoked over HTTP(S). Defaults to `Idempotency-Key`. The same key is also accepted via `ctx.idempotencyKey` in the envelope.
+- `idempotency.ttlSeconds` — Required when `supported: true`. How long the server retains the idempotency record (and its associated response) before a repeat key is treated as a new invocation.
+
+Operations that omit the `idempotency` block MUST be treated as `{ supported: false, required: false }`.
+
+### Cache
+
+The `cache` block declares server-side caching intent and the headers the server emits on path-based responses.
+
+- `cache.enabled` — Required when present. `true` if the operation's response is cacheable.
+- `cache.ttl` — Required when `enabled: true`. Cache lifetime in seconds. The server emits `Cache-Control: max-age={ttl}` on path-based responses.
+- `cache.scope` — Required when `enabled: true`. One of:
+  - `"public"` — Cacheable by shared caches (CDN, proxy). Emitted as `Cache-Control: public`.
+  - `"private"` — Cacheable only by the end-client. Emitted as `Cache-Control: private`.
+  - `"tenant"` — Cacheable per-tenant. Emitted as `Cache-Control: private` plus a `Vary` header that includes the tenant identity (typically `Authorization` or a tenant header).
+- `cache.vary` — Optional. Array of cache key dimensions beyond URL + body hash. Values may name HTTP headers (`"Authorization"`) or argument paths (`"args.locale"`). The server adds matching `Vary` headers and incorporates the named dimensions into the ETag.
+- `cache.tags` — Optional. Array of opaque tags for cache invalidation systems (e.g. surrogate-key purging on Cloudflare/Fastly).
+
+Operations that omit the `cache` block MUST be treated as `{ enabled: false }`. Side-effecting operations MUST NOT set `enabled: true`.
+
+### Telemetry
+
+The `telemetry` block declares observability metadata used by servers when emitting traces, logs, and metrics. It also tells handlers which fields must be redacted before being captured into telemetry sinks.
+
+- `telemetry.spanName` — Required when present. The span name to use when this operation runs (e.g. `auth.register`). Servers SHOULD use this for OpenTelemetry span naming.
+- `telemetry.attributes` — Optional. Array of argument paths to capture as span attributes. Values are dotted paths into `args` (e.g. `"phone"`, `"order.itemId"`). Excludes anything listed in `sensitive`.
+- `telemetry.sensitive` — Optional. Array of argument paths the handler MUST redact before emitting telemetry. Values are dotted paths into `args`. Servers MUST redact these before logging or tracing — the operation handler is the source of truth for which fields are sensitive.
+
+When `telemetry.sensitive` and `telemetry.attributes` overlap, sensitivity wins: the field is redacted, not captured.
+
+### Streaming
+
+The `stream` block is required when `executionModel: "stream"`, omitted otherwise.
+
+- `stream.supportedTransports` — Required. Transports the stream can deliver over (e.g. `["wss", "mqtt", "quic"]`). The caller can express preference in `args`; the server picks the best match.
+- `stream.supportedEncodings` — Required. Available frame encodings (e.g. `["protobuf", "json"]`).
+- `stream.ttlSeconds` — Required. Default subscription lifetime. The server adds this to the current time to compute `stream.expiresAt`. Server MAY override per-subscription based on load or policy.
+- `stream.frameIntegrity` — Optional, defaults to `false`. When `true`, frames include integrity headers (sequence number and checksum). Recommended for safety-critical applications.
+
+### Result TTL
+
+- `ttlSeconds` — Required for `async` operations. The server adds this to the current time to compute `expiresAt` on response envelopes for the operation instance. After this time, `GET /ops/{requestId}` and chunk endpoints return `404`. Optional for `sync` operations whose results are persisted (e.g. for idempotent retries).
+
+### Deprecation
+
+- `deprecated` — Optional, defaults to `false`. When `true`, callers SHOULD migrate to the `replacement` operation.
+- `sunset` — ISO 8601 date (`YYYY-MM-DD`), present only when `deprecated: true`. The server MUST continue to serve the operation until this date. After the sunset date, the server MAY remove the operation and return `410 Gone` with an `OP_REMOVED` error.
+- `replacement` — The `op` name of the replacement operation (e.g. `v2:orders.getItem`), present only when `deprecated: true`.
+
+### Errors
+
+Operation-level error codes are NOT carried in this registry. They are served separately at [`/.well-known/errors`](#errors-endpoint) so that the operations registry stays small and easy to load into agent context.
+
+### Examples
+
+#### Sync, cacheable, path-eligible
+
+```json
+{
+  "op": "v1:catalog.getItem",
+  "executionModel": "sync",
+  "sideEffecting": false,
+  "argsSchema": {
+    "type": "object",
+    "properties": { "itemId": { "type": "string" } },
+    "required": ["itemId"]
+  },
+  "resultSchema": {},
+  "authScopes": ["catalog:read"],
+  "sync": { "maxMs": 250, "onTimeout": "fail" },
+  "idempotency": { "supported": false, "required": false },
+  "cache": {
+    "enabled": true,
+    "ttl": 300,
+    "scope": "public",
+    "vary": ["args.locale"],
+    "tags": ["catalog"]
+  },
+  "telemetry": {
+    "spanName": "catalog.getItem",
+    "attributes": ["itemId"],
+    "sensitive": []
+  }
+}
+```
+
+#### Sync, side-effecting, idempotent
+
+```json
+{
+  "op": "v1:auth.register",
+  "executionModel": "sync",
+  "sideEffecting": true,
+  "argsSchema": {},
+  "resultSchema": {},
+  "authScopes": [],
+  "sync": { "maxMs": 2000, "onTimeout": "escalate" },
+  "idempotency": {
+    "supported": true,
+    "required": true,
+    "keyHeader": "Idempotency-Key",
+    "ttlSeconds": 86400
+  },
+  "cache": { "enabled": false },
+  "telemetry": {
+    "spanName": "auth.register",
+    "attributes": ["country"],
+    "sensitive": ["phone", "password"]
+  }
+}
+```
+
+#### Streaming
+
+```json
+{
+  "op": "v1:device.subscribePosition",
+  "executionModel": "stream",
+  "sideEffecting": false,
+  "argsSchema": {},
+  "frameSchema": {},
+  "authScopes": ["device:read"],
+  "telemetry": {
+    "spanName": "device.subscribePosition",
+    "attributes": ["deviceId"],
+    "sensitive": []
+  },
+  "stream": {
+    "supportedTransports": ["wss", "mqtt", "quic"],
+    "supportedEncodings": ["protobuf", "json"],
+    "ttlSeconds": 3600,
+    "frameIntegrity": true
+  }
+}
+```
+
+#### Deprecated
 
 ```json
 {
   "op": "v1:orders.getItem",
+  "executionModel": "sync",
+  "sideEffecting": false,
   "argsSchema": {},
   "resultSchema": {},
-  "sideEffecting": false,
-  "executionModel": "sync",
   "authScopes": ["orders:read"],
+  "sync": { "maxMs": 500, "onTimeout": "fail" },
   "deprecated": true,
   "sunset": "2026-06-01",
   "replacement": "v2:orders.getItem"
 }
 ```
-
-### Deprecation Fields
-
-- `deprecated` — Boolean, optional, defaults to `false`. When `true`, callers SHOULD migrate to the `replacement` operation.
-- `sunset` — ISO 8601 date (`YYYY-MM-DD`), present only when `deprecated` is `true`. The server MUST continue to serve the operation until this date. After the sunset date, the server MAY remove the operation and return `410 Gone` with an `OP_REMOVED` error.
-- `replacement` — The `op` name of the replacement operation (e.g. `v2:orders.getItem`), present only when `deprecated` is `true`.
-
-### Fields
-
-- `executionModel` — Declares how the operation executes: `sync` returns a result immediately, `async` returns 202 with a polling location, `stream` returns 202 with stream metadata.
-- `frameSchema` — Schema describing each frame in a stream. Present only when `executionModel=stream`. Enables agents to understand frame structure before subscribing.
-- `supportedTransports` — Which transports a streaming operation can deliver over. The caller can express preference in `args`; the server picks the best match.
-- `supportedEncodings` — Which encodings are available for stream frames. Same negotiation as transports.
-- `frameIntegrity` — Whether stream frames include integrity headers (sequence number and checksum). Defaults to `false`. Recommended for safety-critical applications.
-- `ttlSeconds` — Default lifetime for this operation. The server adds this to the current time to compute `expiresAt` (Unix epoch seconds) in the response envelope.
-  - For synchronous and asynchronous operations, this is the TTL for the operation instance and its result.
-  - For streaming operations, this is the default stream lifetime (time until `stream.expiresAt`), which the server can override per-subscription based on load or policy.
 
 ---
 
@@ -895,11 +1179,14 @@ When an operation is deprecated, the registry entry includes `deprecated`, `suns
 GET /.well-known/ops
 ```
 
-Returns the full operation registry as a JSON object:
+Returns the operation registry as a JSON object:
 
 ```json
 {
   "callVersion": "2026-02-10",
+  "schemaHash": "sha256:...",
+  "endpoints": ["rpc", "path"],
+  "errorsUrl": "/.well-known/errors",
   "operations": []
 }
 ```
@@ -907,6 +1194,11 @@ Returns the full operation registry as a JSON object:
 ### Top-Level Fields
 
 - `callVersion` — Required. Calendar date (`YYYY-MM-DD`) of the OpenCALL specification version the server implements.
+- `schemaHash` — Required. SHA-256 hash of the canonicalized registry, prefixed with `sha256:`. Computed by canonicalizing the entire response object excluding the `schemaHash` field itself, using the same canonicalization rules as the [Path-Based Operation Endpoint cache key](#canonicalization-rules). The hash changes whenever any operation's metadata changes — even an addition. Clients and agents SHOULD compare `schemaHash` to detect changes more reliably than `callVersion`, which only moves on spec-level revisions.
+- `endpoints` — Required. Array declaring which invocation forms the server supports for every operation in this registry. Values:
+  - `"rpc"` — `POST /call` with the canonical envelope. Always present.
+  - `"path"` — `POST /ops/{version}/{path}` per [Path-Based Operation Endpoint](#path-based-operation-endpoint). Optional service-level binding; when present, it applies to every operation in `operations` regardless of execution model or side-effects. Cacheability still derives from each operation's `cache` block.
+- `errorsUrl` — Optional. Path or absolute URL where the error catalog is served, per [Errors Endpoint](#errors-endpoint). Defaults to `/.well-known/errors` when omitted.
 - `operations` — Required. Array of registry entries describing every available operation.
 
 ### Contents
@@ -920,6 +1212,8 @@ The registry includes:
 - deprecation status, sunset dates, and replacements
 - limits and constraints
 
+It does NOT include error codes — those are served at [`/.well-known/errors`](#errors-endpoint) so that the operations payload stays small enough to load into agent context inexpensively.
+
 This document is the canonical contract for:
 
 - frontend client generation
@@ -928,7 +1222,85 @@ This document is the canonical contract for:
 
 ### HTTP Caching
 
-Servers SHOULD include `Cache-Control` and `ETag` headers on `/.well-known/ops` responses. Clients SHOULD use conditional requests (`If-None-Match`) to avoid re-fetching an unchanged registry. Standard HTTP caching is sufficient — no custom hash fields are needed.
+Servers SHOULD include `Cache-Control` and `ETag` headers on `/.well-known/ops` responses. The `ETag` SHOULD match the `schemaHash` field so that intermediaries cache by the same identifier the spec uses. Clients SHOULD use conditional requests (`If-None-Match`) to avoid re-fetching an unchanged registry.
+
+---
+
+## Errors Endpoint
+
+```
+GET /.well-known/errors
+```
+
+Returns the catalog of error codes the server can produce. Errors are split out from `/.well-known/ops` to keep the operations registry small — the bulk of the payload that agents and clients load on first contact.
+
+```json
+{
+  "callVersion": "2026-02-10",
+  "schemaHash": "sha256:...",
+  "service": [
+    {
+      "code": "AUTH_REQUIRED",
+      "httpStatus": 401,
+      "message": "Authentication required.",
+      "retryable": false
+    },
+    {
+      "code": "FORBIDDEN",
+      "httpStatus": 403,
+      "message": "Authentication valid but insufficient.",
+      "retryable": false
+    },
+    {
+      "code": "INVALID_REQUEST",
+      "httpStatus": 400,
+      "message": "Request envelope or arguments failed validation.",
+      "retryable": false
+    },
+    {
+      "code": "TIMEOUT",
+      "httpStatus": 200,
+      "state": "error",
+      "message": "Operation exceeded its synchronous time budget.",
+      "retryable": false
+    }
+  ],
+  "operations": {
+    "v1:auth.register": [
+      {
+        "code": "PHONE_ALREADY_REGISTERED",
+        "httpStatus": 200,
+        "state": "error",
+        "message": "Phone number is already registered.",
+        "retryable": false
+      }
+    ]
+  }
+}
+```
+
+### Top-Level Fields
+
+- `callVersion` — Required. Same meaning as `/.well-known/ops`.
+- `schemaHash` — Required. SHA-256 hash of the canonicalized error catalog (excluding the `schemaHash` field itself), prefixed with `sha256:`. Independent of the registry's `schemaHash`.
+- `service` — Required. Array of error entries that apply to every endpoint. Includes protocol-level errors (`400`, `401`, `403`, `404`, `405`, `410`, `429`, `500`, `502`, `503`) and cross-cutting domain errors (e.g. `TIMEOUT`).
+- `operations` — Required. Map of operation name to array of operation-specific error entries. Each entry describes a domain error the named operation may emit.
+
+### Error Entry Fields
+
+- `code` — Required. The error code as it appears in `error.code` on the canonical envelope.
+- `httpStatus` — Required. The HTTP status code the server returns alongside this error. Domain errors typically use `200` (sync) or `202` (async) per [HTTP Status Code Semantics](#http-status-code-semantics).
+- `state` — Optional. The envelope `state` value when this error is emitted. Defaults to `"error"`. Mostly used to disambiguate when the same code may appear in different states.
+- `message` — Required. Default human-readable message for the error. Servers MAY override per-instance to include specifics.
+- `retryable` — Required. Boolean hint indicating whether retrying the same request without modification is likely to succeed.
+
+### HTTP Caching
+
+Same caching semantics as `/.well-known/ops`. The `ETag` SHOULD match the `schemaHash`. Clients use `If-None-Match` to avoid re-fetching an unchanged catalog.
+
+### Discovery
+
+Clients SHOULD locate the errors endpoint via the `errorsUrl` field on the operations registry response, falling back to `/.well-known/errors` when omitted.
 
 ---
 
@@ -937,7 +1309,8 @@ Servers SHOULD include `Cache-Control` and `ETag` headers on `/.well-known/ops` 
 - Single tool: `call`
 - Input matches invocation request envelope
 - Output matches canonical response envelope
-- Agent retrieves capabilities via `/.well-known/ops`
+- Agent retrieves capabilities via `/.well-known/ops` and error codes via `/.well-known/errors`
+- Agent uses `schemaHash` on both endpoints to detect changes without re-downloading the full payload
 - Agent progression is pull-based for sync/async operations
 - Agent connects to push-based streams when the operation's execution model is `stream`
 - Agent uses `sessionId` to correlate related operations and streams
@@ -1009,6 +1382,8 @@ The primary and reference binding.
 
 **Envelope mapping:**
 `POST /call` with JSON body (`application/json`). When the invocation includes inline media attachments, the request uses `multipart/form-data` with the envelope JSON in a part named `envelope` and binary attachments in named parts. Response is always JSON.
+
+Servers MAY additionally expose every operation at `POST /ops/{version}/{path}` per the [Path-Based Operation Endpoint](#path-based-operation-endpoint). The body is the same envelope with `op` omitted. The path binding is a service-level capability advertised via the top-level `endpoints` array on `/.well-known/ops`; when present, it applies to every operation in the registry.
 
 **Auth mechanism:**
 `Authorization` header. The envelope `auth` block is not used.

@@ -2,9 +2,9 @@
 
 # Goodbye REST. Hello OpenCALL.
 
-**OpenCALL** — Open Command And Lifecycle Layer — is an API specification designed for a world where humans and AI agents are equal consumers of your services.
+**OpenCALL** — Open Command And Lifecycle Layer — is a transport-neutral operation protocol designed for a world where humans and AI agents are equal consumers of your services.
 
-REST optimizes around resource modeling and HTTP semantics, which work well for human-designed clients but map awkwardly to agent-style invocation. Agent-facing tool protocols (like MCP) translate intent into actionable requests. OpenCALL replaces both with a single operation-based protocol that serves multiple audiences.
+REST is an architectural style for HTTP-mediated resource access. It works well for human-designed clients but maps awkwardly to agent-style invocation. Agent-facing tool protocols (like MCP) translate intent into actionable requests. OpenCALL is a single operation-based protocol that serves both audiences, with bindings for HTTP, WebSocket, MQTT, Kafka, WebRTC, and QUIC.
 
 ## The Problem
 
@@ -14,7 +14,7 @@ So we built MCP for agents and kept REST for humans. Now you're maintaining two 
 
 ## The Answer
 
-One endpoint. One envelope. One contract.
+One envelope. One contract. Multiple bindings.
 
 ```
 POST /call
@@ -23,12 +23,17 @@ POST /call
 ```json
 {
   "op": "v1:orders.getItem",
-  "args": { "orderId": "456", "itemId": "789" },
-  "ctx": { "requestId": "..." }
+  "args": { "orderId": "456", "itemId": "789" }
 }
 ```
 
 That's it. A human developer can read it. An agent can call it. The operation name carries the intent. The registry describes what's available. No verb mapping, no resource nesting, no translation.
+
+When the server advertises the path binding, the same envelope can also be invoked at a path-addressed endpoint — every operation gets a stable URL so per-route policy, observability, and (for non-mutating ops) edge caching can operate on operations as first-class resources:
+
+```
+POST /ops/v1/orders/getItem
+```
 
 ## What OpenCALL Supports
 
@@ -42,9 +47,9 @@ That's it. A human developer can read it. An agent can call it. The operation na
 - **Code-generated registry** — the operation registry at `/.well-known/ops` is designed to be generated from source code annotations (JSDoc, decorators, doc comments), not hand-maintained. Multi-team ownership via namespaces
 - **Versioned operations** — version-prefixed names (`v1:orders.getItem`), additive-first evolution rules, and a deprecation lifecycle with contractual sunset dates
 - **Transport-aware auth** — HTTP uses headers, MQTT/Kafka use envelope auth, QUIC uses built-in TLS. One auth model, transport-specific enforcement
-- **Caching as an orthogonal concern** — OpenCALL does not depend on HTTP proxy caching.
-  Servers cache internally per-operation, or return `location` URIs pointing to cacheable
-  resources (CDN/S3)
+- **Caching, three ways** — server-side per-operation caches, path-addressed endpoints with deterministic ETags for edge/CDN caching of non-mutating operations, or `location` indirection for static result assets
+- **Observability built in** — responses carry an op name and timing; the registry declares span names, traced attributes, and sensitive fields that handlers must redact before emitting telemetry
+- **Errors served separately** — `/.well-known/errors` lists protocol-level and per-operation error codes so the operations registry stays small enough to load into agent context cheaply
 
 ## Tradeoffs
 
