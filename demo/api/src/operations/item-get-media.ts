@@ -10,8 +10,8 @@ import { getSignedUrl } from "../services/media.ts";
  *
  * @op v1:item.getMedia
  * @execution sync
- * @timeout 5s
- * @ttl 1h
+ * @timeout 5000
+ * @ttl 3600
  * @security items:read
  * @cache location
  */

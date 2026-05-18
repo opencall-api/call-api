@@ -7,8 +7,8 @@ import type { Database } from "bun:sqlite";
  *
  * @op v1:patron.fines
  * @execution sync
- * @timeout 5s
- * @ttl 0s
+ * @timeout 5000
+ * @ttl 0
  * @cache none
  * @security patron:billing
  */
