@@ -74,9 +74,12 @@ interface ErrorEntry {
 
 interface ErrorsResponse {
   callVersion: string;
-  schemaHash: string;
-  service: ErrorEntry[];
-  operations: Record<string, ErrorEntry[]>;
+  schemaHash?: string;
+  // spec format
+  service?: ErrorEntry[];
+  operations?: Record<string, ErrorEntry[]>;
+  // flat format (errors array with optional per-entry .operations list)
+  errors?: Array<ErrorEntry & { operations?: string[] }>;
 }
 
 interface ConfigResponse {
@@ -117,9 +120,19 @@ function stat(value: unknown): string {
 }
 
 function hasError(
-  value: RegistryResponse | ErrorsResponse | ProxyResponse | { error?: string },
-): value is { error?: string } {
+  value: RegistryResponse | ErrorsResponse | ProxyResponse | { error?: unknown },
+): value is { error?: unknown } {
   return "error" in value;
+}
+
+function extractErrorMessage(value: { error?: unknown }, fallback: string): string {
+  const err = value.error;
+  if (!err) return fallback;
+  if (typeof err === "string") return err;
+  if (typeof err === "object" && err !== null && "message" in err && typeof (err as Record<string, unknown>).message === "string") {
+    return (err as Record<string, unknown>).message as string;
+  }
+  return JSON.stringify(err);
 }
 
 function App() {
@@ -149,11 +162,9 @@ function App() {
       const registryRes = await fetch(
         `/api/registry?target=${encodeURIComponent(target)}`,
       );
-      const registryBody = (await registryRes.json()) as RegistryResponse | { error?: string };
+      const registryBody = (await registryRes.json()) as RegistryResponse | { error?: unknown };
       if (!registryRes.ok || hasError(registryBody)) {
-        throw new Error(
-          hasError(registryBody) && registryBody.error ? registryBody.error : "Failed to load registry",
-        );
+        throw new Error(extractErrorMessage(registryBody, "Failed to load registry"));
       }
       setRegistry(registryBody);
 
@@ -161,13 +172,9 @@ function App() {
       const errorsRes = await fetch(
         `/api/errors?target=${encodeURIComponent(target)}&errorsUrl=${encodeURIComponent(errorsUrl)}`,
       );
-      const errorsBody = (await errorsRes.json()) as ErrorsResponse | { error?: string };
+      const errorsBody = (await errorsRes.json()) as ErrorsResponse | { error?: unknown };
       if (!errorsRes.ok || hasError(errorsBody)) {
-        throw new Error(
-          hasError(errorsBody) && errorsBody.error
-            ? errorsBody.error
-            : "Failed to load error catalog",
-        );
+        throw new Error(extractErrorMessage(errorsBody, "Failed to load error catalog"));
       }
       setErrorsCatalog(errorsBody);
 
@@ -240,11 +247,9 @@ function App() {
                 },
         }),
       });
-      const result = (await res.json()) as ProxyResponse | { error?: string };
+      const result = (await res.json()) as ProxyResponse | { error?: unknown };
       if (!res.ok || hasError(result)) {
-        throw new Error(
-          hasError(result) && result.error ? result.error : "Request failed",
-        );
+        throw new Error(extractErrorMessage(result, "Request failed"));
       }
       setProxyResult(result);
     } catch (error) {
@@ -338,7 +343,7 @@ function App() {
             <article className="card">
               <h3>Auth and execution</h3>
               <div className="badge-row">
-                {activeOperation.authScopes.length > 0 ? (
+                {(activeOperation.authScopes?.length ?? 0) > 0 ? (
                   activeOperation.authScopes.map((scope) => (
                     <span className="badge" key={scope}>
                       {scope}
@@ -401,16 +406,33 @@ function App() {
   function renderErrors() {
     if (!errorsCatalog) return null;
 
+    // flat format: single errors array with optional per-entry .operations scope
+    if (errorsCatalog.errors) {
+      return (
+        <div className="content">
+          <pre className="json-block">{prettyJson(errorsCatalog.errors)}</pre>
+        </div>
+      );
+    }
+
+    // spec format: service array + operations map
     return (
       <div className="content">
-        <section className="panel">
-          <h2>Service errors</h2>
-          <pre className="json-block">{prettyJson(errorsCatalog.service)}</pre>
-        </section>
-        <section className="panel">
-          <h2>Operation-specific errors</h2>
-          <pre className="json-block">{prettyJson(errorsCatalog.operations)}</pre>
-        </section>
+        {errorsCatalog.service && (
+          <section className="panel">
+            <h2>Service errors</h2>
+            <pre className="json-block">{prettyJson(errorsCatalog.service)}</pre>
+          </section>
+        )}
+        {errorsCatalog.operations && (
+          <section className="panel">
+            <h2>Operation-specific errors</h2>
+            <pre className="json-block">{prettyJson(errorsCatalog.operations)}</pre>
+          </section>
+        )}
+        {!errorsCatalog.service && !errorsCatalog.operations && (
+          <div className="empty">No error catalog data available.</div>
+        )}
       </div>
     );
   }
@@ -535,14 +557,15 @@ function App() {
           </div>
           <div className="status-card">
             <span className="status-label">Operations</span>
-            <span className="status-value">{registry?.operations.length ?? 0}</span>
+            <span className="status-value">{registry?.operations?.length ?? 0}</span>
           </div>
           <div className="status-card">
             <span className="status-label">Error codes</span>
             <span className="status-value">
-              {(errorsCatalog?.service.length || 0) +
-                Object.values(errorsCatalog?.operations || {}).reduce(
-                  (sum, entries) => sum + entries.length,
+              {(errorsCatalog?.service?.length ?? 0) +
+                (errorsCatalog?.errors?.length ?? 0) +
+                Object.values(errorsCatalog?.operations ?? {}).reduce(
+                  (sum, entries) => sum + (Array.isArray(entries) ? entries.length : 0),
                   0,
                 )}
             </span>
