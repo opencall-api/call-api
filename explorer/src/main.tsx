@@ -95,6 +95,7 @@ interface ProxyResponse {
 }
 
 type TabId = "overview" | "operations" | "errors" | "try";
+type ThemeMode = "light" | "dark";
 
 function prettyJson(value: unknown): string {
   return JSON.stringify(value, null, 2);
@@ -115,7 +116,14 @@ function stat(value: unknown): string {
   return String(value);
 }
 
+function hasError(
+  value: RegistryResponse | ErrorsResponse | ProxyResponse | { error?: string },
+): value is { error?: string } {
+  return "error" in value;
+}
+
 function App() {
+  const [themeMode, setThemeMode] = useState<ThemeMode>("light");
   const [targetOrigin, setTargetOrigin] = useState("");
   const [registry, setRegistry] = useState<RegistryResponse | null>(null);
   const [errorsCatalog, setErrorsCatalog] = useState<ErrorsResponse | null>(null);
@@ -142,11 +150,9 @@ function App() {
         `/api/registry?target=${encodeURIComponent(target)}`,
       );
       const registryBody = (await registryRes.json()) as RegistryResponse | { error?: string };
-      if (!registryRes.ok || "error" in registryBody) {
+      if (!registryRes.ok || hasError(registryBody)) {
         throw new Error(
-          "error" in registryBody && registryBody.error
-            ? registryBody.error
-            : "Failed to load registry",
+          hasError(registryBody) && registryBody.error ? registryBody.error : "Failed to load registry",
         );
       }
       setRegistry(registryBody);
@@ -156,9 +162,9 @@ function App() {
         `/api/errors?target=${encodeURIComponent(target)}&errorsUrl=${encodeURIComponent(errorsUrl)}`,
       );
       const errorsBody = (await errorsRes.json()) as ErrorsResponse | { error?: string };
-      if (!errorsRes.ok || "error" in errorsBody) {
+      if (!errorsRes.ok || hasError(errorsBody)) {
         throw new Error(
-          "error" in errorsBody && errorsBody.error
+          hasError(errorsBody) && errorsBody.error
             ? errorsBody.error
             : "Failed to load error catalog",
         );
@@ -186,6 +192,10 @@ function App() {
       setLoadError(error instanceof Error ? error.message : "Failed to load config");
     });
   }, []);
+
+  useEffect(() => {
+    document.documentElement.dataset.theme = themeMode;
+  }, [themeMode]);
 
   const operations = registry?.operations || [];
   const filteredOperations = operations.filter((operation) =>
@@ -231,9 +241,9 @@ function App() {
         }),
       });
       const result = (await res.json()) as ProxyResponse | { error?: string };
-      if (!res.ok || "error" in result) {
+      if (!res.ok || hasError(result)) {
         throw new Error(
-          "error" in result && result.error ? result.error : "Request failed",
+          hasError(result) && result.error ? result.error : "Request failed",
         );
       }
       setProxyResult(result);
@@ -493,17 +503,28 @@ function App() {
 
   return (
     <div className="page">
-      <section className="hero">
-        <div className="hero-card">
+      <section className="hero panel">
+        <div className="hero-main">
           <div className="eyebrow">OpenCALL Explorer</div>
-          <h1>Human-first visualization for a live OpenCALL service.</h1>
-          <p>
-            Point the explorer at any OpenCALL domain. It will read the live registry
-            and error catalog, render the operation reference, and let you exercise
-            `POST /call` without hand-writing curl commands.
-          </p>
+          <div className="hero-title-row">
+            <div>
+              <h1>Live contract explorer for OpenCALL services</h1>
+              <p>
+                Inspect the published registry, review error contracts, and send real
+                `POST /call` requests through the proxy without switching tools.
+              </p>
+            </div>
+            <button
+              className="btn btn-secondary theme-toggle"
+              onClick={() =>
+                setThemeMode((current) => (current === "light" ? "dark" : "light"))
+              }
+            >
+              {themeMode === "light" ? "Dark mode" : "Light mode"}
+            </button>
+          </div>
         </div>
-        <div className="hero-grid">
+        <div className="hero-stats">
           <div className="status-card">
             <span className="status-label">Target origin</span>
             <span className="status-value">{targetOrigin || "loading..."}</span>
