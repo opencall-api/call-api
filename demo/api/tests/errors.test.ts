@@ -57,7 +57,7 @@ describe("Error handling", () => {
   });
 
   test("400 UNKNOWN_OPERATION: unregistered operation", async () => {
-    const res = await call("v1:fake.op", {}, undefined, token);
+    const res = await call("fake.op:v1", {}, undefined, token);
     expect(res.status).toBe(400);
     expect(res.body.state).toBe("error");
     expect(res.body.error!.code).toBe("UNKNOWN_OPERATION");
@@ -67,7 +67,7 @@ describe("Error handling", () => {
 
   test("400 SCHEMA_VALIDATION_FAILED: invalid args", async () => {
     const res = await call(
-      "v1:catalog.list",
+      "catalog.list:v1",
       { limit: "not a number" },
       undefined,
       token
@@ -80,7 +80,7 @@ describe("Error handling", () => {
   });
 
   test("401 AUTH_REQUIRED: missing Authorization header", async () => {
-    const res = await call("v1:catalog.list", {});
+    const res = await call("catalog.list:v1", {});
     expect(res.status).toBe(401);
     expect(res.body.state).toBe("error");
     expect(res.body.error!.code).toBe("AUTH_REQUIRED");
@@ -89,7 +89,7 @@ describe("Error handling", () => {
   });
 
   test("403 INSUFFICIENT_SCOPES: valid token but missing scope", async () => {
-    const res = await call("v1:patron.fines", {}, undefined, token);
+    const res = await call("patron.fines:v1", {}, undefined, token);
     expect(res.status).toBe(403);
     expect(res.body.state).toBe("error");
     expect(res.body.error!.code).toBe("INSUFFICIENT_SCOPES");
@@ -111,7 +111,7 @@ describe("Error handling", () => {
   });
 
   test("domain errors return HTTP 200 with state=error", async () => {
-    const res = await call("v1:item.get", { itemId: "nonexistent-xyz" }, undefined, token);
+    const res = await call("item.get:v1", { itemId: "nonexistent-xyz" }, undefined, token);
     expect(res.status).toBe(200);
     expect(res.body.state).toBe("error");
     expect(res.body.error!.code).toBe("ITEM_NOT_FOUND");
@@ -123,15 +123,15 @@ describe("Error handling", () => {
     // Test several error conditions and verify message is always present and non-empty
     const errors = [
       // AUTH_REQUIRED
-      await call("v1:catalog.list", {}),
+      await call("catalog.list:v1", {}),
       // UNKNOWN_OPERATION
-      await call("v1:nonexistent.op", {}, undefined, token),
+      await call("nonexistent.op:v1", {}, undefined, token),
       // SCHEMA_VALIDATION_FAILED
-      await call("v1:catalog.list", { limit: "bad" }, undefined, token),
+      await call("catalog.list:v1", { limit: "bad" }, undefined, token),
       // INSUFFICIENT_SCOPES
-      await call("v1:patron.fines", {}, undefined, token),
+      await call("patron.fines:v1", {}, undefined, token),
       // Domain error
-      await call("v1:item.get", { itemId: "no-such-item" }, undefined, token),
+      await call("item.get:v1", { itemId: "no-such-item" }, undefined, token),
     ];
 
     for (const res of errors) {

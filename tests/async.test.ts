@@ -5,27 +5,27 @@ import { callWithoutAuth } from "./helpers/auth";
 import { validTodo } from "./helpers/fixtures";
 
 describe("Async Execution (REQ-ASYNC)", () => {
-  test("v1:todos.export returns HTTP 202 with state=accepted", async () => {
-    const { status, body } = await call("v1:todos.export", { format: "csv" });
+  test("todos.export:v1 returns HTTP 202 with state=accepted", async () => {
+    const { status, body } = await call("todos.export:v1", { format: "csv" });
     expect(status).toBe(202);
     expect(body.state).toBe("accepted");
   });
 
   test("202 response includes requestId and retryAfterMs", async () => {
-    const { body } = await call("v1:todos.export", { format: "csv" });
+    const { body } = await call("todos.export:v1", { format: "csv" });
     expect(body.requestId).toBeTruthy();
     expect(body.retryAfterMs).toBeGreaterThan(0);
   });
 
   test("polling GET /ops/{requestId} returns current operation state", async () => {
-    const { body } = await call("v1:todos.export", { format: "csv" });
+    const { body } = await call("todos.export:v1", { format: "csv" });
     const poll = await pollOperation(body.requestId);
     expect(poll.status).toBe(200);
     expect(["accepted", "pending", "complete"]).toContain(poll.body.state);
   });
 
   test("async operation transitions from accepted through pending to complete", async () => {
-    const { body } = await call("v1:todos.export", { format: "csv" });
+    const { body } = await call("todos.export:v1", { format: "csv" });
     const seenStates = new Set<string>();
     seenStates.add("accepted"); // initial state
     const result = await waitForCompletion(body.requestId);
@@ -33,15 +33,15 @@ describe("Async Execution (REQ-ASYNC)", () => {
   });
 
   test("completed async operation includes result and no error", async () => {
-    const { body } = await call("v1:todos.export", { format: "csv" });
+    const { body } = await call("todos.export:v1", { format: "csv" });
     const result = await waitForCompletion(body.requestId);
     expect(result.state).toBe("complete");
     expect(result.result).toBeDefined();
     expect(result.error).toBeUndefined();
   });
 
-  test("v1:reports.generate returns 202 and eventually completes", async () => {
-    const { status, body } = await call("v1:reports.generate", { type: "summary" });
+  test("reports.generate:v1 returns 202 and eventually completes", async () => {
+    const { status, body } = await call("reports.generate:v1", { type: "summary" });
     expect(status).toBe(202);
     const result = await waitForCompletion(body.requestId);
     expect(result.state).toBe("complete");
@@ -53,11 +53,11 @@ describe("Async Execution (REQ-ASYNC)", () => {
     expect(poll.status).toBe(404);
   });
 
-  test("completed v1:todos.export contains expected export data", async () => {
+  test("completed todos.export:v1 contains expected export data", async () => {
     // Create a todo first so there's data to export
-    await call("v1:todos.create", validTodo());
+    await call("todos.create:v1", validTodo());
 
-    const { body } = await call("v1:todos.export", { format: "csv" });
+    const { body } = await call("todos.export:v1", { format: "csv" });
     const result = await waitForCompletion(body.requestId);
     const exportResult = result.result as { format: string; data: string; count: number };
     expect(exportResult.format).toBe("csv");
@@ -67,8 +67,8 @@ describe("Async Execution (REQ-ASYNC)", () => {
 
   test("registry declares async executionModel for export and report ops", async () => {
     const { body } = await getRegistry();
-    const exportOp = body.operations.find((o) => o.op === "v1:todos.export");
-    const reportOp = body.operations.find((o) => o.op === "v1:reports.generate");
+    const exportOp = body.operations.find((o) => o.op === "todos.export:v1");
+    const reportOp = body.operations.find((o) => o.op === "reports.generate:v1");
     expect(exportOp).toBeDefined();
     expect(exportOp!.executionModel).toBe("async");
     expect(reportOp).toBeDefined();
@@ -76,13 +76,13 @@ describe("Async Execution (REQ-ASYNC)", () => {
   });
 
   test("async operation without valid auth token returns 401", async () => {
-    const { status, body } = await callWithoutAuth("v1:todos.export", { format: "csv" });
+    const { status, body } = await callWithoutAuth("todos.export:v1", { format: "csv" });
     expect(status).toBe(401);
     expect(body.state).toBe("error");
   });
 
   test("202 response includes expiresAt as Unix epoch seconds", async () => {
-    const { body } = await call("v1:todos.export", { format: "csv" });
+    const { body } = await call("todos.export:v1", { format: "csv" });
     expect(typeof body.expiresAt).toBe("number");
     expect(body.expiresAt).toBeGreaterThan(Math.floor(Date.now() / 1000));
   });

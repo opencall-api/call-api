@@ -7,7 +7,7 @@ import { hasOverdueItems } from "../services/lending.ts";
 /**
  * Reserve a catalog item for pickup.
  *
- * @op v1:item.reserve
+ * @op item.reserve:v1
  * @execution sync
  * @timeout 5000
  * @ttl 0
@@ -41,7 +41,7 @@ export async function handler(
   if (overdue.hasOverdue) {
     throw new DomainError("OVERDUE_ITEMS_EXIST", "You have overdue items that must be returned before reserving new items", {
       count: overdue.count,
-      hint: "Use v1:patron.get to view your overdue items",
+      hint: "Use patron.get:v1 to view your overdue items",
     });
   }
 

@@ -18,10 +18,10 @@ describe("Chunked Retrieval (REQ-CHUNK)", () => {
   test("completed export operation returns chunk response", async () => {
     // Create some todos to have data
     for (let i = 0; i < 5; i++) {
-      await call("v1:todos.create", validTodo());
+      await call("todos.create:v1", validTodo());
     }
 
-    const { body: accepted } = await call("v1:todos.export", { format: "csv" });
+    const { body: accepted } = await call("todos.export:v1", { format: "csv" });
     await waitForCompletion(accepted.requestId);
 
     const { status, body } = await getChunks(accepted.requestId);
@@ -30,8 +30,8 @@ describe("Chunked Retrieval (REQ-CHUNK)", () => {
   });
 
   test("first chunk has offset 0", async () => {
-    await call("v1:todos.create", validTodo());
-    const { body: accepted } = await call("v1:todos.export", { format: "csv" });
+    await call("todos.create:v1", validTodo());
+    const { body: accepted } = await call("todos.export:v1", { format: "csv" });
     await waitForCompletion(accepted.requestId);
 
     const { body } = await getChunks(accepted.requestId);
@@ -40,8 +40,8 @@ describe("Chunked Retrieval (REQ-CHUNK)", () => {
   });
 
   test("first chunk has checksumPrevious as null", async () => {
-    await call("v1:todos.create", validTodo());
-    const { body: accepted } = await call("v1:todos.export", { format: "csv" });
+    await call("todos.create:v1", validTodo());
+    const { body: accepted } = await call("todos.export:v1", { format: "csv" });
     await waitForCompletion(accepted.requestId);
 
     const { body } = await getChunks(accepted.requestId);
@@ -50,8 +50,8 @@ describe("Chunked Retrieval (REQ-CHUNK)", () => {
   });
 
   test("chunk checksum is in sha256:{hex} format", async () => {
-    await call("v1:todos.create", validTodo());
-    const { body: accepted } = await call("v1:todos.export", { format: "csv" });
+    await call("todos.create:v1", validTodo());
+    const { body: accepted } = await call("todos.export:v1", { format: "csv" });
     await waitForCompletion(accepted.requestId);
 
     const { body } = await getChunks(accepted.requestId);
@@ -60,8 +60,8 @@ describe("Chunked Retrieval (REQ-CHUNK)", () => {
   });
 
   test("SHA-256 of chunk data matches declared checksum", async () => {
-    await call("v1:todos.create", validTodo());
-    const { body: accepted } = await call("v1:todos.export", { format: "csv" });
+    await call("todos.create:v1", validTodo());
+    const { body: accepted } = await call("todos.export:v1", { format: "csv" });
     await waitForCompletion(accepted.requestId);
 
     const { body } = await getChunks(accepted.requestId);
@@ -75,10 +75,10 @@ describe("Chunked Retrieval (REQ-CHUNK)", () => {
   test("second chunk checksumPrevious matches first chunk checksum", async () => {
     // Create many todos to ensure multiple chunks
     for (let i = 0; i < 20; i++) {
-      await call("v1:todos.create", validTodo({ title: `Chunked test todo ${i} with a longer title to ensure we exceed chunk size limit` }));
+      await call("todos.create:v1", validTodo({ title: `Chunked test todo ${i} with a longer title to ensure we exceed chunk size limit` }));
     }
 
-    const { body: accepted } = await call("v1:todos.export", { format: "csv" });
+    const { body: accepted } = await call("todos.export:v1", { format: "csv" });
     await waitForCompletion(accepted.requestId);
 
     const { body: first } = await getChunks(accepted.requestId);
@@ -95,8 +95,8 @@ describe("Chunked Retrieval (REQ-CHUNK)", () => {
   });
 
   test("final chunk has state=complete", async () => {
-    await call("v1:todos.create", validTodo());
-    const { body: accepted } = await call("v1:todos.export", { format: "csv" });
+    await call("todos.create:v1", validTodo());
+    const { body: accepted } = await call("todos.export:v1", { format: "csv" });
     await waitForCompletion(accepted.requestId);
 
     // Walk to the last chunk
@@ -113,10 +113,10 @@ describe("Chunked Retrieval (REQ-CHUNK)", () => {
 
   test("requesting with cursor returns next chunk", async () => {
     for (let i = 0; i < 20; i++) {
-      await call("v1:todos.create", validTodo({ title: `Cursor nav test ${i} extra padding to exceed chunk boundary` }));
+      await call("todos.create:v1", validTodo({ title: `Cursor nav test ${i} extra padding to exceed chunk boundary` }));
     }
 
-    const { body: accepted } = await call("v1:todos.export", { format: "csv" });
+    const { body: accepted } = await call("todos.export:v1", { format: "csv" });
     await waitForCompletion(accepted.requestId);
 
     const { body: first } = await getChunks(accepted.requestId);

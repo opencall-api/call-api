@@ -4,7 +4,7 @@ import { pollOperation } from "./helpers/async";
 
 describe("Status Codes (REQ-STATUS)", () => {
   test("HTTP 500 includes full error payload with code and message", async () => {
-    const { status, body } = await call("v1:debug.simulateError", {
+    const { status, body } = await call("debug.simulateError:v1", {
       statusCode: 500,
       code: "INTERNAL_ERROR",
       message: "Something went wrong internally",
@@ -16,7 +16,7 @@ describe("Status Codes (REQ-STATUS)", () => {
   });
 
   test("HTTP 500 error.code is a non-empty string", async () => {
-    const { body } = await call("v1:debug.simulateError", {
+    const { body } = await call("debug.simulateError:v1", {
       statusCode: 500,
       code: "SERVER_FAILURE",
       message: "Failure",
@@ -38,7 +38,7 @@ describe("Status Codes (REQ-STATUS)", () => {
   });
 
   test("HTTP 502 response includes error payload", async () => {
-    const { status, body } = await call("v1:debug.simulateError", {
+    const { status, body } = await call("debug.simulateError:v1", {
       statusCode: 502,
       code: "UPSTREAM_ERROR",
       message: "Upstream dependency failed",
@@ -49,7 +49,7 @@ describe("Status Codes (REQ-STATUS)", () => {
   });
 
   test("HTTP 503 response includes error payload", async () => {
-    const { status, body } = await call("v1:debug.simulateError", {
+    const { status, body } = await call("debug.simulateError:v1", {
       statusCode: 503,
       code: "SERVICE_UNAVAILABLE",
       message: "Server is temporarily unavailable",
@@ -62,10 +62,10 @@ describe("Status Codes (REQ-STATUS)", () => {
   test("all error responses include requestId", async () => {
     // Test a variety of error status codes
     const tests = [
-      call("v1:debug.simulateError", { statusCode: 500, code: "ERR", message: "test" }),
-      call("v1:debug.simulateError", { statusCode: 502, code: "ERR", message: "test" }),
-      call("v1:debug.simulateError", { statusCode: 503, code: "ERR", message: "test" }),
-      call("v1:todos.search", { query: "test" }), // 410
+      call("debug.simulateError:v1", { statusCode: 500, code: "ERR", message: "test" }),
+      call("debug.simulateError:v1", { statusCode: 502, code: "ERR", message: "test" }),
+      call("debug.simulateError:v1", { statusCode: 503, code: "ERR", message: "test" }),
+      call("todos.search:v1", { query: "test" }), // 410
       call("no.such.op"), // 400
     ];
     const results = await Promise.all(tests);

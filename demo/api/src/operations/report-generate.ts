@@ -7,7 +7,7 @@ import { generateReport } from "../services/reports.ts";
 /**
  * Generate a lending report asynchronously.
  *
- * @op v1:report.generate
+ * @op report.generate:v1
  * @execution async
  * @timeout 30000
  * @ttl 3600
@@ -39,7 +39,7 @@ export async function handler(
   createOperation(
     ctx.requestId,
     ctx.sessionId,
-    "v1:report.generate",
+    "report.generate:v1",
     parsed,
     ctx.patronId,
     3600

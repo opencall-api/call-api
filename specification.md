@@ -65,19 +65,19 @@ and a JSON error body directing the caller to `POST /call` for invocation and
 
 ### Operation Naming Convention
 
-Every operation name MUST be prefixed with a version: `v{N}:namespace.operation`.
+Every operation name MUST carry a version suffix: `namespace.operation:v{N}`.
 
 ```
-v1:orders.getItem
-v1:identity.verify
-v1:device.readPosition
+orders.getItem:v1
+identity.verify:v1
+device.readPosition:v1
 ```
 
-The version prefix is part of the `op` name — it flows through the envelope, registry, and routing unchanged. Version numbers are positive integers, monotonically increasing per operation lineage (`v1`, `v2`, `v3`, ...).
+The version suffix is part of the `op` name — it flows through the envelope, registry, and routing unchanged. Version numbers are positive integers, monotonically increasing per operation lineage (`v1`, `v2`, `v3`, ...).
 
-All operations start at `v1`. When a breaking change is needed, a new version is introduced (e.g. `v2:orders.getItem`) while the old version remains available until its sunset date. See [Schema Evolution](#schema-evolution) for what constitutes a breaking change.
+All operations start at `v1`. When a breaking change is needed, a new version is introduced (e.g. `orders.getItem:v2`) while the old version remains available until its sunset date. See [Schema Evolution](#schema-evolution) for what constitutes a breaking change.
 
-If a namespace is not needed for a simple API, the operation name can be just `v1:getItem`. The version prefix is still required.
+If a namespace is not needed for a simple API, the operation name can be just `getItem:v1`. The version suffix is still required.
 
 ---
 
@@ -88,18 +88,18 @@ Servers MAY expose non-mutating operations at a path-addressed endpoint in addit
 ### Endpoint
 
 ```
-POST /ops/{version}/{path}
+POST /ops/{path}/{version}
 ```
 
-`{version}` is the operation's version prefix (e.g. `v1`). `{path}` is the operation name with the version prefix removed and `.` replaced by `/`.
+`{path}` is the operation name with the version suffix removed and `.` replaced by `/`. `{version}` is the operation's version (e.g. `v1`).
 
 | Operation name           | Path                          |
 | ------------------------ | ----------------------------- |
-| `v1:user.auth.login`     | `/ops/v1/user/auth/login`     |
-| `v1:orders.getItem`      | `/ops/v1/orders/getItem`      |
-| `v1:device.readPosition` | `/ops/v1/device/readPosition` |
+| `user.auth.login:v1`     | `/ops/user/auth/login/v1`     |
+| `orders.getItem:v1`      | `/ops/orders/getItem/v1`      |
+| `device.readPosition:v1` | `/ops/device/readPosition/v1` |
 
-The mapping is built by splitting the operation name on `:` to extract the version, then splitting the remainder on `.` and joining the segments with `/`. Implementations MUST use standard URL construction tooling rather than ad-hoc string templating. The `:` and `.` separators are structural; they MUST NOT be percent-encoded into the URL path.
+The mapping is built by splitting the operation name on `:` to get the path part and the version, splitting the path part on `.` and joining the segments with `/`, then appending the version as the final path segment. Implementations MUST use standard URL construction tooling rather than ad-hoc string templating. The `:` and `.` separators are structural; they MUST NOT be percent-encoded into the URL path.
 
 The `/ops/{requestId}` and `/ops/{requestId}/chunks` endpoints use `GET`, so they do not collide with this `POST` path.
 
@@ -132,7 +132,7 @@ For operations with `cache.enabled: true` in the registry, the server MUST set a
 ETag = "\"sha256:" + hex(sha256(opName + canonicalize(args))) + "\""
 ```
 
-Where `opName` is the full version-prefixed operation name (e.g. `v1:user.auth.login`) and `canonicalize(args)` produces a deterministic byte sequence using the rules below.
+Where `opName` is the full operation name with version suffix (e.g. `user.auth.login:v1`) and `canonicalize(args)` produces a deterministic byte sequence using the rules below.
 
 ### Canonicalization Rules
 
@@ -346,7 +346,7 @@ All protocol-level responses SHOULD return this canonical envelope whenever a pa
 
 - `meta`
   Optional observability block. When present:
-  - `meta.op` — Required. The fully-qualified operation name as recognized by the server (e.g. `v1:user.auth.login`). This is the canonical name used for span naming, dashboarding, and rate-limit attribution. Servers SHOULD always include this when emitting `meta`.
+  - `meta.op` — Required. The fully-qualified operation name as recognized by the server (e.g. `user.auth.login:v1`). This is the canonical name used for span naming, dashboarding, and rate-limit attribution. Servers SHOULD always include this when emitting `meta`.
   - `meta.durationMs` — Optional. Integer milliseconds the server spent producing this response, measured from envelope receipt to response serialization. Excludes network and queueing time outside the server's control.
   - `meta.tenantId` — Optional. The tenant identity associated with this invocation, when the server resolves authentication into a tenant. Useful for multi-tenant telemetry and audit logs.
 
@@ -389,7 +389,7 @@ Used for longer running operations, particularly those that involve heavy comput
 
 ### Stream Subscription
 
-1. Caller sends `POST /call` with a streaming operation (e.g. `op: "v1:subscribeToStream"`)
+1. Caller sends `POST /call` with a streaming operation (e.g. `op: "subscribeToStream:v1"`)
 2. Server returns `202` with the canonical response envelope containing the `stream` object (streams may involve a transport change, so 303 auto-follow is not appropriate)
 3. Caller reads the `stream` object, connects to `stream.location` using the specified `stream.transport` and credentials if provided
 4. Frames arrive as raw encoded data — no envelope wrapping per frame
@@ -455,7 +455,7 @@ The server MAY cache results internally, keyed by operation name and arguments. 
 
 ### Path-Based Endpoint (Infrastructure-Cacheable)
 
-When the registry's top-level `endpoints` array includes `"path"`, callers MAY invoke any operation via [`POST /ops/{version}/{path}`](#path-based-operation-endpoint). For operations where `cache.enabled: true`, the server emits an `ETag` derived from the canonicalized operation name and args, plus `Cache-Control` headers driven by the registry's `cache` block. Edge proxies and CDNs that understand body-aware POST caching can cache responses at the infrastructure layer; clients can use `If-None-Match` to receive `304 Not Modified`.
+When the registry's top-level `endpoints` array includes `"path"`, callers MAY invoke any operation via [`POST /ops/{path}/{version}`](#path-based-operation-endpoint). For operations where `cache.enabled: true`, the server emits an `ETag` derived from the canonicalized operation name and args, plus `Cache-Control` headers driven by the registry's `cache` block. Edge proxies and CDNs that understand body-aware POST caching can cache responses at the infrastructure layer; clients can use `If-None-Match` to receive `304 Not Modified`.
 
 Cacheability is per-operation, not per-endpoint: it follows `cache.enabled`, which MUST be `false` for side-effecting operations. The path binding makes responses *addressable* in cache infrastructure; the registry decides whether they are *cached*.
 
@@ -463,7 +463,7 @@ Cacheability is per-operation, not per-endpoint: it follows `cache.enabled`, whi
 
 For large or static results, the server returns `202` with a `location` pointing to a cacheable resource endpoint (CDN, S3, pre-signed URL). The resource at that URI follows standard HTTP caching semantics — `Cache-Control`, `ETag`, `Last-Modified` — and can be cached by any HTTP intermediary.
 
-This pattern naturally separates the invocation (which is operation-specific) from the result (which may be a static asset). A `POST /call` for `v1:reports.generate` might return a `location` pointing to a PDF on a CDN. The invocation is not cached; the PDF is.
+This pattern naturally separates the invocation (which is operation-specific) from the result (which may be a static asset). A `POST /call` for `reports.generate:v1` might return a `location` pointing to a PDF on a CDN. The invocation is not cached; the PDF is.
 
 ### When Caching Is Not Relevant
 
@@ -620,7 +620,7 @@ Content-Disposition: form-data; name="envelope"
 Content-Type: application/json
 
 {
-  "op": "v1:identity.verify",
+  "op": "identity.verify:v1",
   "args": {
     "fullName": "Jane Smith",
     "dateOfBirth": "1990-05-15",
@@ -654,7 +654,7 @@ A pre-uploaded video is referenced by URI:
 
 ```json
 {
-  "op": "v1:media.transcode",
+  "op": "media.transcode:v1",
   "args": { "outputFormat": "h265", "quality": "high" },
   "media": [
     {
@@ -675,7 +675,7 @@ Operations that accept media declare a `mediaSchema` in the registry:
 
 ```json
 {
-  "op": "v1:identity.verify",
+  "op": "identity.verify:v1",
   "mediaSchema": [
     {
       "name": "selfie",
@@ -778,10 +778,10 @@ The operation registry MAY declare `frameIntegrity: true` to indicate that frame
   "state": "error",
   "error": {
     "code": "OP_REMOVED",
-    "message": "v1:orders.getItem was removed on 2026-06-01",
+    "message": "orders.getItem:v1 was removed on 2026-06-01",
     "cause": {
-      "removedOp": "v1:orders.getItem",
-      "replacement": "v2:orders.getItem"
+      "removedOp": "orders.getItem:v1",
+      "replacement": "orders.getItem:v2"
     }
   }
 }
@@ -834,7 +834,7 @@ Operations evolve. The versioning model ensures that evolution is safe for exist
 
 ### Safe Changes (Non-Breaking)
 
-These changes do not require a new version. The operation keeps its existing `v{N}:` prefix:
+These changes do not require a new version. The operation keeps its existing `:v{N}` suffix:
 
 - Add an optional field to `argsSchema`
 - Add a field to `resultSchema`
@@ -867,7 +867,7 @@ Using strings preserves leading zeros and avoids numeric formatting differences 
 
 ### Breaking Changes
 
-These changes require a new version (`v{N+1}:op.name`):
+These changes require a new version (`op.name:v{N+1}`):
 
 - Remove or rename a field in `argsSchema` or `resultSchema`
 - Narrow a type (e.g. `number` → `integer`, enum loses a value)
@@ -875,7 +875,7 @@ These changes require a new version (`v{N+1}:op.name`):
 - Change the `executionModel` (e.g. `sync` → `async`)
 - Remove an accepted MIME type from `mediaSchema`
 
-When a breaking change is needed, introduce the new version (e.g. `v2:orders.getItem`) and deprecate the old version (e.g. `v1:orders.getItem`). Both versions coexist in the registry until the old version's sunset date.
+When a breaking change is needed, introduce the new version (e.g. `orders.getItem:v2`) and deprecate the old version (e.g. `orders.getItem:v1`). Both versions coexist in the registry until the old version's sunset date.
 
 ### Robustness Principle
 
@@ -930,7 +930,7 @@ Authentication is transport-aware. The core spec defines the `auth` shape; enfor
 
 The operation registry is intended to be generated from code, not hand-maintained. Implementations typically derive the registry from source annotations — JSDoc tags, Go doc comments, Python decorators, Java annotations — using build-time tooling similar to how TSOA generates OpenAPI from TypeScript controllers.
 
-The version-prefixed namespace (`v1:namespace.operation`) naturally supports multi-team ownership: each team governs their namespace, and the registry is assembled at build or boot time.
+The versioned namespace (`namespace.operation:v1`) naturally supports multi-team ownership: each team governs their namespace, and the registry is assembled at build or boot time.
 
 The generation mechanism is an implementation detail. The spec requires only that `GET /.well-known/ops` returns a conformant registry — how it gets built is up to the developer.
 
@@ -938,7 +938,7 @@ The generation mechanism is an implementation detail. The spec requires only tha
 
 ```json
 {
-  "op": "v1:namespace.operation",
+  "op": "namespace.operation:v1",
   "executionModel": "sync | async | stream",
   "sideEffecting": false,
   "argsSchema": {},
@@ -977,17 +977,17 @@ The generation mechanism is an implementation detail. The spec requires only tha
   "ttlSeconds": 0,
   "deprecated": false,
   "sunset": "YYYY-MM-DD",
-  "replacement": "v2:namespace.operation"
+  "replacement": "namespace.operation:v2"
 }
 ```
 
 ### Identity and Discovery
 
-- `op` — Required. Fully-qualified operation name with version prefix (`v1:namespace.operation`).
+- `op` — Required. Fully-qualified operation name with version suffix (`namespace.operation:v1`).
 - `executionModel` — Required. One of `sync`, `async`, `stream`. Determines response semantics: `sync` returns a result on the same call, `async` returns 202 with a polling location, `stream` returns 202 with stream metadata.
 - `sideEffecting` — Required. `true` if invoking the operation mutates state. Side-effecting operations MUST set `cache.enabled: false` and SHOULD set `idempotency.supported: true`.
 
-The endpoints through which an operation can be invoked (`POST /call` and optionally `POST /ops/{version}/{path}`) are a service-level capability declared in the top-level `endpoints` field of the registry response — see [Self-Description Endpoint](#self-description-endpoint). Per-operation endpoint declarations are not part of the registry entry: when the server supports the path binding, it supports it for every operation in the registry.
+The endpoints through which an operation can be invoked (`POST /call` and optionally `POST /ops/{path}/{version}`) are a service-level capability declared in the top-level `endpoints` field of the registry response — see [Self-Description Endpoint](#self-description-endpoint). Per-operation endpoint declarations are not part of the registry entry: when the server supports the path binding, it supports it for every operation in the registry.
 
 ### Schemas
 
@@ -1065,7 +1065,7 @@ The `stream` block is required when `executionModel: "stream"`, omitted otherwis
 
 - `deprecated` — Optional, defaults to `false`. When `true`, callers SHOULD migrate to the `replacement` operation.
 - `sunset` — ISO 8601 date (`YYYY-MM-DD`), present only when `deprecated: true`. The server MUST continue to serve the operation until this date. After the sunset date, the server MAY remove the operation and return `410 Gone` with an `OP_REMOVED` error.
-- `replacement` — The `op` name of the replacement operation (e.g. `v2:orders.getItem`), present only when `deprecated: true`.
+- `replacement` — The `op` name of the replacement operation (e.g. `orders.getItem:v2`), present only when `deprecated: true`.
 
 ### Errors
 
@@ -1077,7 +1077,7 @@ Operation-level error codes are NOT carried in this registry. They are served se
 
 ```json
 {
-  "op": "v1:catalog.getItem",
+  "op": "catalog.getItem:v1",
   "executionModel": "sync",
   "sideEffecting": false,
   "argsSchema": {
@@ -1108,7 +1108,7 @@ Operation-level error codes are NOT carried in this registry. They are served se
 
 ```json
 {
-  "op": "v1:auth.register",
+  "op": "auth.register:v1",
   "executionModel": "sync",
   "sideEffecting": true,
   "argsSchema": {},
@@ -1134,7 +1134,7 @@ Operation-level error codes are NOT carried in this registry. They are served se
 
 ```json
 {
-  "op": "v1:device.subscribePosition",
+  "op": "device.subscribePosition:v1",
   "executionModel": "stream",
   "sideEffecting": false,
   "argsSchema": {},
@@ -1158,7 +1158,7 @@ Operation-level error codes are NOT carried in this registry. They are served se
 
 ```json
 {
-  "op": "v1:orders.getItem",
+  "op": "orders.getItem:v1",
   "executionModel": "sync",
   "sideEffecting": false,
   "argsSchema": {},
@@ -1167,7 +1167,7 @@ Operation-level error codes are NOT carried in this registry. They are served se
   "sync": { "maxMs": 500, "onTimeout": "fail" },
   "deprecated": true,
   "sunset": "2026-06-01",
-  "replacement": "v2:orders.getItem"
+  "replacement": "orders.getItem:v2"
 }
 ```
 
@@ -1197,7 +1197,7 @@ Returns the operation registry as a JSON object:
 - `schemaHash` — Required. SHA-256 hash of the canonicalized registry, prefixed with `sha256:`. Computed by canonicalizing the entire response object excluding the `schemaHash` field itself, using the same canonicalization rules as the [Path-Based Operation Endpoint cache key](#canonicalization-rules). The hash changes whenever any operation's metadata changes — even an addition. Clients and agents SHOULD compare `schemaHash` to detect changes more reliably than `callVersion`, which only moves on spec-level revisions.
 - `endpoints` — Required. Array declaring which invocation forms the server supports for every operation in this registry. Values:
   - `"rpc"` — `POST /call` with the canonical envelope. Always present.
-  - `"path"` — `POST /ops/{version}/{path}` per [Path-Based Operation Endpoint](#path-based-operation-endpoint). Optional service-level binding; when present, it applies to every operation in `operations` regardless of execution model or side-effects. Cacheability still derives from each operation's `cache` block.
+  - `"path"` — `POST /ops/{path}/{version}` per [Path-Based Operation Endpoint](#path-based-operation-endpoint). Optional service-level binding; when present, it applies to every operation in `operations` regardless of execution model or side-effects. Cacheability still derives from each operation's `cache` block.
 - `errorsUrl` — Optional. Path or absolute URL where the error catalog is served, per [Errors Endpoint](#errors-endpoint). Defaults to `/.well-known/errors` when omitted.
 - `operations` — Required. Array of registry entries describing every available operation.
 
@@ -1205,7 +1205,7 @@ Returns the operation registry as a JSON object:
 
 The registry includes:
 
-- list of operations (with version-prefixed names)
+- list of operations (with version-suffixed names)
 - schemas (argument, result, frame, and media)
 - execution characteristics and models
 - supported transports and encodings
@@ -1266,7 +1266,7 @@ Returns the catalog of error codes the server can produce. Errors are split out 
     }
   ],
   "operations": {
-    "v1:auth.register": [
+    "auth.register:v1": [
       {
         "code": "PHONE_ALREADY_REGISTERED",
         "httpStatus": 200,
@@ -1383,7 +1383,7 @@ The primary and reference binding.
 **Envelope mapping:**
 `POST /call` with JSON body (`application/json`). When the invocation includes inline media attachments, the request uses `multipart/form-data` with the envelope JSON in a part named `envelope` and binary attachments in named parts. Response is always JSON.
 
-Servers MAY additionally expose every operation at `POST /ops/{version}/{path}` per the [Path-Based Operation Endpoint](#path-based-operation-endpoint). The body is the same envelope with `op` omitted. The path binding is a service-level capability advertised via the top-level `endpoints` array on `/.well-known/ops`; when present, it applies to every operation in the registry.
+Servers MAY additionally expose every operation at `POST /ops/{path}/{version}` per the [Path-Based Operation Endpoint](#path-based-operation-endpoint). The body is the same envelope with `op` omitted. The path binding is a service-level capability advertised via the top-level `endpoints` array on `/.well-known/ops`; when present, it applies to every operation in the registry.
 
 **Auth mechanism:**
 `Authorization` header. The envelope `auth` block is not used.
@@ -1406,7 +1406,7 @@ Authorization: Bearer eyJ...
 Content-Type: application/json
 
 {
-  "op": "v1:device.readPosition",
+  "op": "device.readPosition:v1",
   "args": { "deviceId": "arm-joint-1" },
   "ctx": {
     "requestId": "550e8400-e29b-41d4-a716-446655440000",

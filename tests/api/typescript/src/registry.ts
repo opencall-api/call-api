@@ -57,7 +57,7 @@ export function buildRegistry(): Registry {
     callVersion: "2026-02-10",
     operations: [
       {
-        op: "v1:todos.create",
+        op: "todos.create:v1",
         description: "Create a new todo item",
         argsSchema: toJsonSchema(CreateTodoArgsSchema),
         resultSchema: toJsonSchema(TodoSchema),
@@ -67,7 +67,7 @@ export function buildRegistry(): Registry {
         authScopes: ["todos:write"],
       },
       {
-        op: "v1:todos.get",
+        op: "todos.get:v1",
         description: "Get a todo item by ID",
         argsSchema: toJsonSchema(GetTodoArgsSchema),
         resultSchema: toJsonSchema(TodoSchema),
@@ -77,7 +77,7 @@ export function buildRegistry(): Registry {
         authScopes: ["todos:read"],
       },
       {
-        op: "v1:todos.list",
+        op: "todos.list:v1",
         description: "List todo items with optional filters and pagination",
         argsSchema: toJsonSchema(ListTodosArgsSchema),
         resultSchema: toJsonSchema(ListTodosResultSchema),
@@ -87,7 +87,7 @@ export function buildRegistry(): Registry {
         authScopes: ["todos:read"],
       },
       {
-        op: "v1:todos.update",
+        op: "todos.update:v1",
         description: "Update a todo item",
         argsSchema: toJsonSchema(UpdateTodoArgsSchema),
         resultSchema: toJsonSchema(TodoSchema),
@@ -97,7 +97,7 @@ export function buildRegistry(): Registry {
         authScopes: ["todos:write"],
       },
       {
-        op: "v1:todos.delete",
+        op: "todos.delete:v1",
         description: "Delete a todo item",
         argsSchema: toJsonSchema(DeleteTodoArgsSchema),
         resultSchema: toJsonSchema(DeleteTodoResultSchema),
@@ -107,7 +107,7 @@ export function buildRegistry(): Registry {
         authScopes: ["todos:write"],
       },
       {
-        op: "v1:todos.complete",
+        op: "todos.complete:v1",
         description: "Mark a todo item as complete",
         argsSchema: toJsonSchema(CompleteTodoArgsSchema),
         resultSchema: toJsonSchema(TodoSchema),
@@ -117,7 +117,7 @@ export function buildRegistry(): Registry {
         authScopes: ["todos:write"],
       },
       {
-        op: "v1:todos.export",
+        op: "todos.export:v1",
         description: "Export all todos in CSV or JSON format",
         argsSchema: toJsonSchema(ExportTodosArgsSchema),
         resultSchema: toJsonSchema(ExportTodosResultSchema),
@@ -127,7 +127,7 @@ export function buildRegistry(): Registry {
         authScopes: ["todos:read"],
       },
       {
-        op: "v1:reports.generate",
+        op: "reports.generate:v1",
         description: "Generate a summary report of todos",
         argsSchema: toJsonSchema(GenerateReportArgsSchema),
         resultSchema: toJsonSchema(GenerateReportResultSchema),
@@ -137,8 +137,8 @@ export function buildRegistry(): Registry {
         authScopes: ["reports:read"],
       },
       {
-        op: "v1:todos.search",
-        description: "Search todos by query (deprecated, use v1:todos.list with label filter)",
+        op: "todos.search:v1",
+        description: "Search todos by query (deprecated, use todos.list:v1 with label filter)",
         argsSchema: toJsonSchema(SearchTodosArgsSchema),
         resultSchema: toJsonSchema(ListTodosResultSchema),
         sideEffecting: false,
@@ -147,10 +147,10 @@ export function buildRegistry(): Registry {
         authScopes: ["todos:read"],
         deprecated: true,
         sunset: "2025-01-01",
-        replacement: "v1:todos.list",
+        replacement: "todos.list:v1",
       },
       {
-        op: "v1:debug.simulateError",
+        op: "debug.simulateError:v1",
         description: "Simulate a server error for testing (test-only)",
         argsSchema: toJsonSchema(SimulateErrorArgsSchema),
         resultSchema: toJsonSchema(SimulateErrorResultSchema),
@@ -160,7 +160,7 @@ export function buildRegistry(): Registry {
         authScopes: [],
       },
       {
-        op: "v1:todos.watch",
+        op: "todos.watch:v1",
         description: "Watch for changes to todo items via WebSocket stream",
         argsSchema: toJsonSchema(WatchTodosArgsSchema),
         resultSchema: toJsonSchema(WatchTodosFrameSchema),
@@ -174,7 +174,7 @@ export function buildRegistry(): Registry {
         ttlSeconds: 3600,
       },
       {
-        op: "v1:todos.attach",
+        op: "todos.attach:v1",
         description: "Attach a file to a todo item",
         argsSchema: toJsonSchema(AttachTodoArgsSchema),
         resultSchema: toJsonSchema(AttachTodoResultSchema),

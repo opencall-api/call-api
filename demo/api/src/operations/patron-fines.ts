@@ -5,7 +5,7 @@ import type { Database } from "bun:sqlite";
 /**
  * View patron fines and billing (always returns 403 - scope never granted).
  *
- * @op v1:patron.fines
+ * @op patron.fines:v1
  * @execution sync
  * @timeout 5000
  * @ttl 0

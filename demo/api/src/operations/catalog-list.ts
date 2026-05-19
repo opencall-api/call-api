@@ -6,7 +6,7 @@ import { listItems } from "../services/catalog.ts";
 /**
  * Browse the library catalog with filtering and pagination.
  *
- * @op v1:catalog.list
+ * @op catalog.list:v1
  * @execution sync
  * @timeout 5000
  * @ttl 3600

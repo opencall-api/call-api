@@ -16,12 +16,12 @@ describe("Self-Description (REQ-SELF)", () => {
   test("registry includes all six todo operations", async () => {
     const { body } = await getRegistry();
     const opNames = body.operations.map((o) => o.op);
-    expect(opNames).toContain("v1:todos.create");
-    expect(opNames).toContain("v1:todos.get");
-    expect(opNames).toContain("v1:todos.list");
-    expect(opNames).toContain("v1:todos.update");
-    expect(opNames).toContain("v1:todos.delete");
-    expect(opNames).toContain("v1:todos.complete");
+    expect(opNames).toContain("todos.create:v1");
+    expect(opNames).toContain("todos.get:v1");
+    expect(opNames).toContain("todos.list:v1");
+    expect(opNames).toContain("todos.update:v1");
+    expect(opNames).toContain("todos.delete:v1");
+    expect(opNames).toContain("todos.complete:v1");
   });
 
   test("each operation has required registry fields", async () => {
@@ -53,9 +53,9 @@ describe("Self-Description (REQ-SELF)", () => {
     }
   });
 
-  test("v1:todos.create argsSchema requires title", async () => {
+  test("todos.create:v1 argsSchema requires title", async () => {
     const { body } = await getRegistry();
-    const create = body.operations.find((o) => o.op === "v1:todos.create");
+    const create = body.operations.find((o) => o.op === "todos.create:v1");
     expect(create).toBeDefined();
     const schema = create!.argsSchema as { required?: string[] };
     expect(schema.required).toContain("title");
@@ -63,7 +63,7 @@ describe("Self-Description (REQ-SELF)", () => {
 
   test("CRUD operations use sync execution model", async () => {
     const { body } = await getRegistry();
-    const crudOps = ["v1:todos.create", "v1:todos.get", "v1:todos.list", "v1:todos.update", "v1:todos.delete", "v1:todos.complete"];
+    const crudOps = ["todos.create:v1", "todos.get:v1", "todos.list:v1", "todos.update:v1", "todos.delete:v1", "todos.complete:v1"];
     for (const opName of crudOps) {
       const op = body.operations.find((o) => o.op === opName);
       expect(op).toBeDefined();
@@ -79,7 +79,7 @@ describe("Self-Description (REQ-SELF)", () => {
 
   test("async operations declare executionModel async", async () => {
     const { body } = await getRegistry();
-    const asyncOps = ["v1:todos.export", "v1:reports.generate"];
+    const asyncOps = ["todos.export:v1", "reports.generate:v1"];
     for (const opName of asyncOps) {
       const op = body.operations.find((o) => o.op === opName);
       expect(op).toBeDefined();
@@ -89,14 +89,14 @@ describe("Self-Description (REQ-SELF)", () => {
 
   test("streaming operations declare executionModel stream", async () => {
     const { body } = await getRegistry();
-    const watch = body.operations.find((o) => o.op === "v1:todos.watch");
+    const watch = body.operations.find((o) => o.op === "todos.watch:v1");
     expect(watch).toBeDefined();
     expect(watch!.executionModel).toBe("stream");
   });
 
   test("deprecated operations include deprecated, sunset, and replacement", async () => {
     const { body } = await getRegistry();
-    const search = body.operations.find((o) => o.op === "v1:todos.search");
+    const search = body.operations.find((o) => o.op === "todos.search:v1");
     expect(search).toBeDefined();
     expect(search!.deprecated).toBe(true);
     expect(search!.sunset).toMatch(/^\d{4}-\d{2}-\d{2}$/);
@@ -105,7 +105,7 @@ describe("Self-Description (REQ-SELF)", () => {
 
   test("media-accepting operations declare mediaSchema", async () => {
     const { body } = await getRegistry();
-    const attach = body.operations.find((o) => o.op === "v1:todos.attach");
+    const attach = body.operations.find((o) => o.op === "todos.attach:v1");
     expect(attach).toBeDefined();
     const ms = attach!.mediaSchema as Record<string, unknown>;
     expect(ms).toBeDefined();

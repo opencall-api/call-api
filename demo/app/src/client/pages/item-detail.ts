@@ -16,8 +16,8 @@ export async function initItemDetail() {
 
   // Fetch item data and media in parallel
   const [itemResult, mediaResult] = await Promise.all([
-    callApi('v1:item.get', { itemId: itemId }),
-    callApi('v1:item.getMedia', { itemId: itemId }),
+    callApi('item.get:v1', { itemId: itemId }),
+    callApi('item.getMedia:v1', { itemId: itemId }),
   ]);
 
   if (itemResult.data?.state === 'error') {
@@ -122,7 +122,7 @@ async function reserveItem(itemId: string) {
     btn.innerHTML = '<span class="spinner"></span> Reserving...';
   }
 
-  const result = await callApi('v1:item.reserve', { itemId: itemId });
+  const result = await callApi('item.reserve:v1', { itemId: itemId });
 
   if (btn) {
     btn.disabled = false;

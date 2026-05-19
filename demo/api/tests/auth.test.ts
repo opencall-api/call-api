@@ -110,18 +110,18 @@ describe("POST /auth/agent", () => {
 describe("Auth enforcement", () => {
   test("missing Authorization header on POST /call returns 401 AUTH_REQUIRED", async () => {
     // Call without token
-    const res = await call("v1:catalog.list", {});
+    const res = await call("catalog.list:v1", {});
     expect(res.status).toBe(401);
     expect(res.body.state).toBe("error");
     expect(res.body.error!.code).toBe("AUTH_REQUIRED");
   });
 
-  test("scope enforcement: v1:patron.fines returns 403 INSUFFICIENT_SCOPES with patron:billing in cause", async () => {
+  test("scope enforcement: patron.fines:v1 returns 403 INSUFFICIENT_SCOPES with patron:billing in cause", async () => {
     // Default human token does not include patron:billing
     const auth = await authenticate();
     const token = auth.body.token;
 
-    const res = await call("v1:patron.fines", {}, undefined, token);
+    const res = await call("patron.fines:v1", {}, undefined, token);
     expect(res.status).toBe(403);
     expect(res.body.state).toBe("error");
     expect(res.body.error!.code).toBe("INSUFFICIENT_SCOPES");
@@ -154,9 +154,9 @@ describe("items:checkin scope enforcement", () => {
     expect(scopes).toContain("items:checkin");
   });
 
-  test("agent calling v1:item.return gets 403 INSUFFICIENT_SCOPES with items:checkin in cause", async () => {
-    // Agent lacks items:checkin scope, so v1:item.return should fail
-    const res = await call("v1:item.return", { itemId: "any-item" }, undefined, agentToken);
+  test("agent calling item.return:v1 gets 403 INSUFFICIENT_SCOPES with items:checkin in cause", async () => {
+    // Agent lacks items:checkin scope, so item.return:v1 should fail
+    const res = await call("item.return:v1", { itemId: "any-item" }, undefined, agentToken);
     expect(res.status).toBe(403);
     expect(res.body.state).toBe("error");
     expect(res.body.error!.code).toBe("INSUFFICIENT_SCOPES");
@@ -165,9 +165,9 @@ describe("items:checkin scope enforcement", () => {
     expect(cause.missing).toContain("items:checkin");
   });
 
-  test("human can call v1:item.return (has items:checkin scope)", async () => {
+  test("human can call item.return:v1 (has items:checkin scope)", async () => {
     // Human has items:checkin, so they pass scope check (may fail with domain error, but not 403)
-    const res = await call("v1:item.return", { itemId: "any-item" }, undefined, humanToken);
+    const res = await call("item.return:v1", { itemId: "any-item" }, undefined, humanToken);
     // Should NOT be 403 - scope check passes, may be 200 with domain error
     expect(res.status).not.toBe(403);
   });

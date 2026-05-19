@@ -5,7 +5,7 @@ import type { Database } from "bun:sqlite";
 /**
  * Bulk import items into the catalog (always returns 403 - scope never granted).
  *
- * @op v1:catalog.bulkImport
+ * @op catalog.bulkImport:v1
  * @execution async
  * @timeout 30000
  * @ttl 3600

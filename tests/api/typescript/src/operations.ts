@@ -199,7 +199,7 @@ function todosComplete(args: unknown): HandlerResult {
 
 function todosExport(args: unknown, requestId: string): AsyncHandlerResult {
   const parsed = ExportTodosArgsSchema.parse(args);
-  const instance = createInstance(requestId, "v1:todos.export");
+  const instance = createInstance(requestId, "todos.export:v1");
 
   // Simulate async work
   setTimeout(() => {
@@ -227,7 +227,7 @@ function todosExport(args: unknown, requestId: string): AsyncHandlerResult {
 
 function reportsGenerate(args: unknown, requestId: string): AsyncHandlerResult {
   const parsed = GenerateReportArgsSchema.parse(args);
-  const instance = createInstance(requestId, "v1:reports.generate");
+  const instance = createInstance(requestId, "reports.generate:v1");
 
   setTimeout(() => {
     transitionTo(requestId, "pending");
@@ -381,49 +381,49 @@ export interface OperationEntry {
 }
 
 export const OPERATIONS: Record<string, OperationEntry> = {
-  "v1:todos.create": { handler: todosCreate, sideEffecting: true, authScopes: ["todos:write"], executionModel: "sync" },
-  "v1:todos.get": { handler: todosGet, sideEffecting: false, authScopes: ["todos:read"], executionModel: "sync" },
-  "v1:todos.list": { handler: todosList, sideEffecting: false, authScopes: ["todos:read"], executionModel: "sync" },
-  "v1:todos.update": { handler: todosUpdate, sideEffecting: true, authScopes: ["todos:write"], executionModel: "sync" },
-  "v1:todos.delete": { handler: todosDelete, sideEffecting: true, authScopes: ["todos:write"], executionModel: "sync" },
-  "v1:todos.complete": { handler: todosComplete, sideEffecting: true, authScopes: ["todos:write"], executionModel: "sync" },
-  "v1:todos.export": {
+  "todos.create:v1": { handler: todosCreate, sideEffecting: true, authScopes: ["todos:write"], executionModel: "sync" },
+  "todos.get:v1": { handler: todosGet, sideEffecting: false, authScopes: ["todos:read"], executionModel: "sync" },
+  "todos.list:v1": { handler: todosList, sideEffecting: false, authScopes: ["todos:read"], executionModel: "sync" },
+  "todos.update:v1": { handler: todosUpdate, sideEffecting: true, authScopes: ["todos:write"], executionModel: "sync" },
+  "todos.delete:v1": { handler: todosDelete, sideEffecting: true, authScopes: ["todos:write"], executionModel: "sync" },
+  "todos.complete:v1": { handler: todosComplete, sideEffecting: true, authScopes: ["todos:write"], executionModel: "sync" },
+  "todos.export:v1": {
     handler: () => { throw new Error("Use asyncHandler"); },
     asyncHandler: todosExport,
     sideEffecting: false,
     authScopes: ["todos:read"],
     executionModel: "async",
   },
-  "v1:reports.generate": {
+  "reports.generate:v1": {
     handler: () => { throw new Error("Use asyncHandler"); },
     asyncHandler: reportsGenerate,
     sideEffecting: false,
     authScopes: ["reports:read"],
     executionModel: "async",
   },
-  "v1:todos.search": {
+  "todos.search:v1": {
     handler: todosSearch,
     sideEffecting: false,
     authScopes: ["todos:read"],
     executionModel: "sync",
     deprecated: true,
     sunset: "2025-01-01",
-    replacement: "v1:todos.list",
+    replacement: "todos.list:v1",
   },
-  "v1:debug.simulateError": {
+  "debug.simulateError:v1": {
     handler: debugSimulateError,
     sideEffecting: false,
     authScopes: [],
     executionModel: "sync",
   },
-  "v1:todos.attach": {
+  "todos.attach:v1": {
     handler: todosAttach,
     sideEffecting: true,
     authScopes: ["todos:write"],
     executionModel: "sync",
     acceptsMedia: true,
   },
-  "v1:todos.watch": {
+  "todos.watch:v1": {
     handler: () => { throw new Error("Use streamHandler"); },
     streamHandler: todosWatch,
     sideEffecting: false,

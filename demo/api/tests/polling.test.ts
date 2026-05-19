@@ -20,11 +20,11 @@ describe("Async operations — polling", () => {
     token = auth.body.token;
   });
 
-  test("POST /call with v1:report.generate returns 202 with state=accepted", async () => {
-    const res = await call("v1:report.generate", {}, undefined, token);
+  test("POST /call with report.generate:v1 returns 202 with state=accepted", async () => {
+    const res = await call("report.generate:v1", {}, undefined, token);
 
     if (res.status === 400 && res.body.error?.code === "UNKNOWN_OPERATION") {
-      console.log("v1:report.generate not implemented yet, skipping async test");
+      console.log("report.generate:v1 not implemented yet, skipping async test");
       return;
     }
 
@@ -33,10 +33,10 @@ describe("Async operations — polling", () => {
   });
 
   test("response includes location.uri pointing to /ops/{requestId}", async () => {
-    const res = await call("v1:report.generate", {}, undefined, token);
+    const res = await call("report.generate:v1", {}, undefined, token);
 
     if (res.status === 400 && res.body.error?.code === "UNKNOWN_OPERATION") {
-      console.log("v1:report.generate not implemented yet, skipping");
+      console.log("report.generate:v1 not implemented yet, skipping");
       return;
     }
 
@@ -49,10 +49,10 @@ describe("Async operations — polling", () => {
   test(
     "polling at GET /ops/{requestId} returns current state",
     async () => {
-      const res = await call("v1:report.generate", {}, undefined, token);
+      const res = await call("report.generate:v1", {}, undefined, token);
 
       if (res.status === 400 && res.body.error?.code === "UNKNOWN_OPERATION") {
-        console.log("v1:report.generate not implemented yet, skipping");
+        console.log("report.generate:v1 not implemented yet, skipping");
         return;
       }
 
@@ -80,7 +80,7 @@ describe("Async operations — polling", () => {
   test(
     "polling twice within 1 second returns 429 RATE_LIMITED",
     async () => {
-      const res = await call("v1:report.generate", {}, undefined, token);
+      const res = await call("report.generate:v1", {}, undefined, token);
       if (res.status === 400) return;
 
       const requestId = res.body.requestId;
@@ -105,7 +105,7 @@ describe("Async operations — polling", () => {
   test(
     "polling with 1+ second gap both succeed (no 429)",
     async () => {
-      const res = await call("v1:report.generate", {}, undefined, token);
+      const res = await call("report.generate:v1", {}, undefined, token);
       if (res.status === 400) return;
 
       const requestId = res.body.requestId;
@@ -126,8 +126,8 @@ describe("Async operations — polling", () => {
   test(
     "different requestIds can be polled simultaneously without 429",
     async () => {
-      const res1 = await call("v1:report.generate", {}, undefined, token);
-      const res2 = await call("v1:report.generate", {}, undefined, token);
+      const res1 = await call("report.generate:v1", {}, undefined, token);
+      const res2 = await call("report.generate:v1", {}, undefined, token);
       if (res1.status === 400 || res2.status === 400) return;
 
       await new Promise((resolve) => setTimeout(resolve, 1100));

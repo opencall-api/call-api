@@ -8,7 +8,7 @@ import { getSignedUrl } from "../services/media.ts";
 /**
  * Get cover image URL for a catalog item (returns 303 redirect or placeholder).
  *
- * @op v1:item.getMedia
+ * @op item.getMedia:v1
  * @execution sync
  * @timeout 5000
  * @ttl 3600

@@ -5,7 +5,7 @@ import type { Database } from "bun:sqlite";
 /**
  * List patron's reservations with optional status filter and pagination.
  *
- * @op v1:patron.reservations
+ * @op patron.reservations:v1
  * @execution sync
  * @timeout 5000
  * @ttl 0

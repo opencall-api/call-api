@@ -16,9 +16,9 @@ export async function initAccount() {
 
   // Fetch patron data, history, and reservations in parallel
   const [patronResult, historyResult, reservationsResult] = await Promise.all([
-    callApi('v1:patron.get'),
-    callApi('v1:patron.history', { limit: 20, offset: 0 }),
-    callApi('v1:patron.reservations', { limit: 20, offset: 0 }),
+    callApi('patron.get:v1'),
+    callApi('patron.history:v1', { limit: 20, offset: 0 }),
+    callApi('patron.reservations:v1', { limit: 20, offset: 0 }),
   ]);
 
   if (patronResult.data?.state === 'error') {
@@ -225,7 +225,7 @@ async function returnItem(itemId: string) {
     btn.innerHTML = '<span class="spinner"></span>';
   }
 
-  const result = await callApi('v1:item.return', { itemId: itemId });
+  const result = await callApi('item.return:v1', { itemId: itemId });
 
   if (result.data?.state === 'error') {
     if (btn) {
