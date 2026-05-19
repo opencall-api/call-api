@@ -9,8 +9,8 @@ import { generateReport } from "../services/reports.ts";
  *
  * @op v1:report.generate
  * @execution async
- * @timeout 30s
- * @ttl 1h
+ * @timeout 30000
+ * @ttl 3600
  * @security reports:generate
  * @flags sideEffecting idempotencyRequired
  */

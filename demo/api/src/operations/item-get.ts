@@ -9,8 +9,8 @@ import { DomainError } from "../call/errors.ts";
  *
  * @op v1:item.get
  * @execution sync
- * @timeout 5s
- * @ttl 1h
+ * @timeout 5000
+ * @ttl 3600
  * @security items:read
  * @cache server
  */

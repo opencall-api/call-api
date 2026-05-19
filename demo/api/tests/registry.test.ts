@@ -53,27 +53,34 @@ describe("GET /.well-known/ops", () => {
     }
   });
 
+  test("registry top-level includes schemaHash and endpoints", async () => {
+    const res = await getRegistry();
+    const body = res.body as Record<string, unknown>;
+    expect(body).toHaveProperty("schemaHash");
+    expect((body.schemaHash as string)).toMatch(/^sha256:/);
+    expect(body).toHaveProperty("endpoints");
+    expect(Array.isArray(body.endpoints)).toBe(true);
+  });
+
   test("each entry has required fields", async () => {
     const res = await getRegistry();
     const ops = res.body.operations as Array<Record<string, unknown>>;
 
-    const requiredFields = [
-      "op",
-      "argsSchema",
-      "resultSchema",
-      "sideEffecting",
-      "idempotencyRequired",
-      "executionModel",
-      "maxSyncMs",
-      "ttlSeconds",
-      "authScopes",
-      "cachingPolicy",
-    ];
+    const universalFields = ["op", "argsSchema", "resultSchema", "sideEffecting", "executionModel", "authScopes"];
 
     for (const entry of ops) {
-      for (const field of requiredFields) {
+      for (const field of universalFields) {
         expect(entry).toHaveProperty(field);
       }
+    }
+
+    // Sync operations must carry a structured sync policy
+    const syncOps = ops.filter((e) => e.executionModel === "sync");
+    for (const entry of syncOps) {
+      const sync = entry.sync as Record<string, unknown> | undefined;
+      expect(sync).toBeDefined();
+      expect(typeof sync!.maxMs).toBe("number");
+      expect(sync!.maxMs).toBeGreaterThan(0);
     }
   });
 

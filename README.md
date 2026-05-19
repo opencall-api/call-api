@@ -99,6 +99,7 @@ See [`tests/README.md`](tests/README.md) for details on running tests, adding ne
 | Link                                                    | Description                                                                   |
 | ------------------------------------------------------- | ----------------------------------------------------------------------------- |
 | [www.opencall-api.com](https://www.opencall-api.com)    | The OpenCALL website — overview, live demo, and interactive API explorer.      |
+| [`tooling/explorer/`](tooling/explorer/README.md)        | Standalone Bun + React explorer for any OpenCALL service.                      |
 | [`specification.md`](specification.md)                   | The full specification; both human and machine readable.                      |
 | [`client.md`](client.md)                                 | What this means on the client side — and why your REST SDK is apology code.   |
 | [`comparisons.md`](comparisons.md)                       | How OpenCALL compares to JSON-RPC, GraphQL, gRPC, SOAP, MCP, A2A, and others. |

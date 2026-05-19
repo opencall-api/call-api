@@ -9,8 +9,8 @@ import { getOverdueItems } from "../services/lending.ts";
  *
  * @op v1:patron.get
  * @execution sync
- * @timeout 5s
- * @ttl 0s
+ * @timeout 5000
+ * @ttl 0
  * @security patron:read
  * @cache none
  */

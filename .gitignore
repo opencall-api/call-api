@@ -2,8 +2,14 @@ node_modules
 .venv
 __pycache__
 docs/plans
+docs/superpowers
 .worktrees/
 .wrangler/
 .agent.work
 */.agent.work
 .codex
+.fuse_hidden*
+**/.fuse_hidden*
+demo/.firebase
+report.md
+requested_changes.md

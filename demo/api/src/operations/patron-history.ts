@@ -8,8 +8,8 @@ import { getLendingHistory } from "../services/lending.ts";
  *
  * @op v1:patron.history
  * @execution sync
- * @timeout 5s
- * @ttl 5m
+ * @timeout 5000
+ * @ttl 300
  * @security patron:read
  * @cache server
  */

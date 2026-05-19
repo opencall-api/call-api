@@ -7,8 +7,8 @@ import type { Database } from "bun:sqlite";
  *
  * @op v1:catalog.bulkImport
  * @execution async
- * @timeout 30s
- * @ttl 1h
+ * @timeout 30000
+ * @ttl 3600
  * @cache none
  * @security items:manage
  * @flags sideEffecting idempotencyRequired
