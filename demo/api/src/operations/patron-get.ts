@@ -7,7 +7,7 @@ import { getOverdueItems } from "../services/lending.ts";
 /**
  * Get patron profile, overdue items, and account summary.
  *
- * @op v1:patron.get
+ * @op patron.get:v1
  * @execution sync
  * @timeout 5000
  * @ttl 0

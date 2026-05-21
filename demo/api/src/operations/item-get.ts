@@ -7,7 +7,7 @@ import { DomainError } from "../call/errors.ts";
 /**
  * Get full details for a catalog item by ID.
  *
- * @op v1:item.get
+ * @op item.get:v1
  * @execution sync
  * @timeout 5000
  * @ttl 3600

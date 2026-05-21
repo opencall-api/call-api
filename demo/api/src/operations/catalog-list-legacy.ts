@@ -4,9 +4,9 @@ import type { Database } from "bun:sqlite";
 import { listItems } from "../services/catalog.ts";
 
 /**
- * Browse the library catalog (deprecated, use v1:catalog.list instead).
+ * Browse the library catalog (deprecated, use catalog.list:v1 instead).
  *
- * @op v1:catalog.listLegacy
+ * @op catalog.listLegacy:v1
  * @execution sync
  * @timeout 5000
  * @ttl 3600
@@ -14,7 +14,7 @@ import { listItems } from "../services/catalog.ts";
  * @cache server
  * @flags deprecated
  * @sunset 2026-06-01
- * @replacement v1:catalog.list
+ * @replacement catalog.list:v1
  */
 
 export const args = z.object({

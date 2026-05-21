@@ -3,7 +3,7 @@ import { call, API_URL } from "./helpers/client";
 
 describe("Error Handling (REQ-ERR)", () => {
   test("unknown operation returns 400 with UNKNOWN_OP", async () => {
-    const { status, body } = await call("v1:nonexistent.op", {});
+    const { status, body } = await call("nonexistent.op:v1", {});
     expect(status).toBe(400);
     expect(body.state).toBe("error");
     expect(body.error!.code).toBe("UNKNOWN_OP");
@@ -21,21 +21,21 @@ describe("Error Handling (REQ-ERR)", () => {
   });
 
   test("missing required arg returns 400 with VALIDATION_ERROR", async () => {
-    const { status, body } = await call("v1:todos.create", {});
+    const { status, body } = await call("todos.create:v1", {});
     expect(status).toBe(400);
     expect(body.state).toBe("error");
     expect(body.error!.code).toBe("VALIDATION_ERROR");
   });
 
   test("wrong arg type returns 400 with VALIDATION_ERROR", async () => {
-    const { status, body } = await call("v1:todos.create", { title: 123 });
+    const { status, body } = await call("todos.create:v1", { title: 123 });
     expect(status).toBe(400);
     expect(body.state).toBe("error");
     expect(body.error!.code).toBe("VALIDATION_ERROR");
   });
 
   test("domain error returns 200 with state=error", async () => {
-    const { status, body } = await call("v1:todos.get", {
+    const { status, body } = await call("todos.get:v1", {
       id: "nonexistent-id",
     });
     expect(status).toBe(200);
@@ -43,7 +43,7 @@ describe("Error Handling (REQ-ERR)", () => {
   });
 
   test("error object always has code and message", async () => {
-    const { body } = await call("v1:nonexistent.op", {});
+    const { body } = await call("nonexistent.op:v1", {});
     expect(typeof body.error!.code).toBe("string");
     expect(typeof body.error!.message).toBe("string");
     expect(body.error!.code.length).toBeGreaterThan(0);

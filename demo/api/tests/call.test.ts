@@ -21,7 +21,7 @@ describe("Envelope format", () => {
   });
 
   test("POST /call returns envelope with requestId in UUID format", async () => {
-    const res = await call("v1:catalog.list", {}, undefined, token);
+    const res = await call("catalog.list:v1", {}, undefined, token);
     expect(res.status).toBe(200);
     expect(res.body.requestId).toBeDefined();
     expect(res.body.requestId).toMatch(
@@ -31,7 +31,7 @@ describe("Envelope format", () => {
 
   test("echoes ctx.requestId when provided", async () => {
     const requestId = crypto.randomUUID();
-    const res = await call("v1:catalog.list", {}, { requestId }, token);
+    const res = await call("catalog.list:v1", {}, { requestId }, token);
     expect(res.status).toBe(200);
     expect(res.body.requestId).toBe(requestId);
   });
@@ -39,7 +39,7 @@ describe("Envelope format", () => {
   test("echoes ctx.sessionId when provided", async () => {
     const requestId = crypto.randomUUID();
     const sessionId = crypto.randomUUID();
-    const res = await call("v1:catalog.list", {}, { requestId, sessionId }, token);
+    const res = await call("catalog.list:v1", {}, { requestId, sessionId }, token);
     expect(res.status).toBe(200);
     expect(res.body.sessionId).toBe(sessionId);
   });
@@ -47,7 +47,7 @@ describe("Envelope format", () => {
 
 // ── catalog.list ────────────────────────────────────────────────────────
 
-describe("v1:catalog.list", () => {
+describe("catalog.list:v1", () => {
   let token: string;
 
   beforeAll(async () => {
@@ -56,7 +56,7 @@ describe("v1:catalog.list", () => {
   });
 
   test("returns state=complete with items array of correct shape", async () => {
-    const res = await call("v1:catalog.list", {}, undefined, token);
+    const res = await call("catalog.list:v1", {}, undefined, token);
     expect(res.status).toBe(200);
     expect(res.body.state).toBe("complete");
     expect(res.body.result).toBeDefined();
@@ -83,7 +83,7 @@ describe("v1:catalog.list", () => {
   });
 
   test("respects type filter", async () => {
-    const res = await call("v1:catalog.list", { type: "cd" }, undefined, token);
+    const res = await call("catalog.list:v1", { type: "cd" }, undefined, token);
     expect(res.status).toBe(200);
     const result = res.body.result as { items: Array<{ type: string }> };
     expect(result.items.length).toBeGreaterThan(0);
@@ -94,11 +94,11 @@ describe("v1:catalog.list", () => {
 
   test("respects search filter", async () => {
     // First get an item to know a title to search for
-    const listRes = await call("v1:catalog.list", { limit: 1 }, undefined, token);
+    const listRes = await call("catalog.list:v1", { limit: 1 }, undefined, token);
     const firstItem = (listRes.body.result as { items: Array<{ title: string }> }).items[0]!;
     const searchTerm = firstItem.title.split(" ")[0]!;
 
-    const res = await call("v1:catalog.list", { search: searchTerm }, undefined, token);
+    const res = await call("catalog.list:v1", { search: searchTerm }, undefined, token);
     expect(res.status).toBe(200);
     const result = res.body.result as { items: Array<{ title: string; creator: string }> };
     // Each item should have title or creator matching search term
@@ -110,7 +110,7 @@ describe("v1:catalog.list", () => {
   });
 
   test("respects available filter", async () => {
-    const res = await call("v1:catalog.list", { available: true }, undefined, token);
+    const res = await call("catalog.list:v1", { available: true }, undefined, token);
     expect(res.status).toBe(200);
     const result = res.body.result as { items: Array<{ available: boolean }> };
     for (const item of result.items) {
@@ -119,8 +119,8 @@ describe("v1:catalog.list", () => {
   });
 
   test("respects limit/offset pagination", async () => {
-    const page1 = await call("v1:catalog.list", { limit: 3, offset: 0 }, undefined, token);
-    const page2 = await call("v1:catalog.list", { limit: 3, offset: 3 }, undefined, token);
+    const page1 = await call("catalog.list:v1", { limit: 3, offset: 0 }, undefined, token);
+    const page2 = await call("catalog.list:v1", { limit: 3, offset: 3 }, undefined, token);
 
     const result1 = page1.body.result as { items: Array<{ id: string }> };
     const result2 = page2.body.result as { items: Array<{ id: string }> };
@@ -136,7 +136,7 @@ describe("v1:catalog.list", () => {
   });
 
   test("returns total count", async () => {
-    const res = await call("v1:catalog.list", { limit: 5 }, undefined, token);
+    const res = await call("catalog.list:v1", { limit: 5 }, undefined, token);
     const result = res.body.result as { items: unknown[]; total: number };
     expect(typeof result.total).toBe("number");
     expect(result.total).toBeGreaterThan(0);
@@ -147,7 +147,7 @@ describe("v1:catalog.list", () => {
 
 // ── catalog.listLegacy ──────────────────────────────────────────────────
 
-describe("v1:catalog.listLegacy", () => {
+describe("catalog.listLegacy:v1", () => {
   let token: string;
 
   beforeAll(async () => {
@@ -156,7 +156,7 @@ describe("v1:catalog.listLegacy", () => {
   });
 
   test("returns same shape as catalog.list", async () => {
-    const res = await call("v1:catalog.listLegacy", {}, undefined, token);
+    const res = await call("catalog.listLegacy:v1", {}, undefined, token);
     expect(res.status).toBe(200);
     expect(res.body.state).toBe("complete");
 
@@ -185,8 +185,8 @@ describe("v1:catalog.listLegacy", () => {
   });
 
   test("delegates to same service (results match catalog.list)", async () => {
-    const legacy = await call("v1:catalog.listLegacy", { limit: 5 }, undefined, token);
-    const modern = await call("v1:catalog.list", { limit: 5 }, undefined, token);
+    const legacy = await call("catalog.listLegacy:v1", { limit: 5 }, undefined, token);
+    const modern = await call("catalog.list:v1", { limit: 5 }, undefined, token);
 
     const legacyResult = legacy.body.result as { items: Array<{ id: string }>; total: number };
     const modernResult = modern.body.result as { items: Array<{ id: string }>; total: number };
@@ -198,7 +198,7 @@ describe("v1:catalog.listLegacy", () => {
 
 // ── catalog.listLegacy — 410 sunset ─────────────────────────────────────
 
-describe("v1:catalog.listLegacy — 410 sunset", () => {
+describe("catalog.listLegacy:v1 — 410 sunset", () => {
   let token: string;
 
   beforeAll(async () => {
@@ -223,12 +223,12 @@ describe("v1:catalog.listLegacy — 410 sunset", () => {
     Date.now = () => new Date("2026-07-01T00:00:00Z").getTime();
 
     try {
-      const res = await call("v1:catalog.listLegacy", {}, undefined, token);
+      const res = await call("catalog.listLegacy:v1", {}, undefined, token);
       expect(res.status).toBe(410);
       expect(res.body.state).toBe("error");
       expect(res.body.error!.code).toBe("OP_REMOVED");
       expect(res.body.error!.cause).toBeDefined();
-      expect(res.body.error!.cause!.replacement).toBe("v1:catalog.list");
+      expect(res.body.error!.cause!.replacement).toBe("catalog.list:v1");
       expect(res.body.error!.cause!.sunset).toBe("2026-06-01");
     } finally {
       Date.now = realDateNow;
@@ -236,7 +236,7 @@ describe("v1:catalog.listLegacy — 410 sunset", () => {
   });
 
   test("still works before sunset date", async () => {
-    const res = await call("v1:catalog.listLegacy", {}, undefined, token);
+    const res = await call("catalog.listLegacy:v1", {}, undefined, token);
     expect(res.status).toBe(200);
     expect(res.body.state).toBe("complete");
   });
@@ -244,7 +244,7 @@ describe("v1:catalog.listLegacy — 410 sunset", () => {
 
 // ── item.get ────────────────────────────────────────────────────────────
 
-describe("v1:item.get", () => {
+describe("item.get:v1", () => {
   let token: string;
   let validItemId: string;
 
@@ -253,13 +253,13 @@ describe("v1:item.get", () => {
     token = auth.body.token;
 
     // Get a valid item ID from the catalog
-    const list = await call("v1:catalog.list", { limit: 1 }, undefined, token);
+    const list = await call("catalog.list:v1", { limit: 1 }, undefined, token);
     const result = list.body.result as { items: Array<{ id: string }> };
     validItemId = result.items[0]!.id;
   });
 
   test("returns full item record for valid itemId", async () => {
-    const res = await call("v1:item.get", { itemId: validItemId }, undefined, token);
+    const res = await call("item.get:v1", { itemId: validItemId }, undefined, token);
     expect(res.status).toBe(200);
     expect(res.body.state).toBe("complete");
 
@@ -280,7 +280,7 @@ describe("v1:item.get", () => {
   });
 
   test("returns domain error ITEM_NOT_FOUND for nonexistent itemId", async () => {
-    const res = await call("v1:item.get", { itemId: "nonexistent-id" }, undefined, token);
+    const res = await call("item.get:v1", { itemId: "nonexistent-id" }, undefined, token);
     expect(res.status).toBe(200);
     expect(res.body.state).toBe("error");
     expect(res.body.error).toBeDefined();
@@ -290,7 +290,7 @@ describe("v1:item.get", () => {
 
 // ── item.getMedia ───────────────────────────────────────────────────────
 
-describe("v1:item.getMedia", () => {
+describe("item.getMedia:v1", () => {
   let token: string;
   let validItemId: string;
 
@@ -298,13 +298,13 @@ describe("v1:item.getMedia", () => {
     const auth = await authenticate();
     token = auth.body.token;
 
-    const list = await call("v1:catalog.list", { limit: 1 }, undefined, token);
+    const list = await call("catalog.list:v1", { limit: 1 }, undefined, token);
     const result = list.body.result as { items: Array<{ id: string }> };
     validItemId = result.items[0]!.id;
   });
 
   test("returns 303 or 200 depending on coverImageKey", async () => {
-    const res = await call("v1:item.getMedia", { itemId: validItemId }, undefined, token);
+    const res = await call("item.getMedia:v1", { itemId: validItemId }, undefined, token);
     // Items without coverImageKey return 200 with placeholder result
     // Items with coverImageKey return 303 with location
     expect([200, 303]).toContain(res.status);
@@ -323,7 +323,7 @@ describe("v1:item.getMedia", () => {
   });
 
   test("returns ITEM_NOT_FOUND for nonexistent itemId", async () => {
-    const res = await call("v1:item.getMedia", { itemId: "nonexistent-id" }, undefined, token);
+    const res = await call("item.getMedia:v1", { itemId: "nonexistent-id" }, undefined, token);
     expect(res.status).toBe(200);
     expect(res.body.state).toBe("error");
     expect(res.body.error!.code).toBe("ITEM_NOT_FOUND");
@@ -332,7 +332,7 @@ describe("v1:item.getMedia", () => {
 
 // ── item.return ─────────────────────────────────────────────────────────
 
-describe("v1:item.return", () => {
+describe("item.return:v1", () => {
   let token: string;
   let patronOverdueItemId: string;
   let validItemId: string;
@@ -342,7 +342,7 @@ describe("v1:item.return", () => {
     token = auth.body.token;
 
     // Get the patron's overdue items to find one to return
-    const patronRes = await call("v1:patron.get", {}, undefined, token);
+    const patronRes = await call("patron.get:v1", {}, undefined, token);
     const patronResult = patronRes.body.result as {
       overdueItems: Array<{ itemId: string }>;
     };
@@ -350,7 +350,7 @@ describe("v1:item.return", () => {
     patronOverdueItemId = patronResult.overdueItems[0]!.itemId;
 
     // Get a valid but non-checked-out item
-    const list = await call("v1:catalog.list", { available: true, limit: 50 }, undefined, token);
+    const list = await call("catalog.list:v1", { available: true, limit: 50 }, undefined, token);
     const items = (list.body.result as { items: Array<{ id: string }> }).items;
     const overdueIds = new Set(patronResult.overdueItems.map((i) => i.itemId));
     const nonCheckedOut = items.find((i) => !overdueIds.has(i.id));
@@ -358,7 +358,7 @@ describe("v1:item.return", () => {
   });
 
   test("successful return for overdue item includes wasOverdue/daysLate/message", async () => {
-    const res = await call("v1:item.return", { itemId: patronOverdueItemId }, undefined, token);
+    const res = await call("item.return:v1", { itemId: patronOverdueItemId }, undefined, token);
     expect(res.status).toBe(200);
     expect(res.body.state).toBe("complete");
 
@@ -381,14 +381,14 @@ describe("v1:item.return", () => {
   });
 
   test("returns ITEM_NOT_FOUND for nonexistent itemId", async () => {
-    const res = await call("v1:item.return", { itemId: "nonexistent-id" }, undefined, token);
+    const res = await call("item.return:v1", { itemId: "nonexistent-id" }, undefined, token);
     expect(res.status).toBe(200);
     expect(res.body.state).toBe("error");
     expect(res.body.error!.code).toBe("ITEM_NOT_FOUND");
   });
 
   test("returns ITEM_NOT_CHECKED_OUT when not checked out by this patron", async () => {
-    const res = await call("v1:item.return", { itemId: validItemId }, undefined, token);
+    const res = await call("item.return:v1", { itemId: validItemId }, undefined, token);
     expect(res.status).toBe(200);
     expect(res.body.state).toBe("error");
     expect(res.body.error!.code).toBe("ITEM_NOT_CHECKED_OUT");
@@ -397,7 +397,7 @@ describe("v1:item.return", () => {
 
 // ── item.reserve ────────────────────────────────────────────────────────
 
-describe("v1:item.reserve", () => {
+describe("item.reserve:v1", () => {
   let token: string;
 
   beforeAll(async () => {
@@ -407,11 +407,11 @@ describe("v1:item.reserve", () => {
 
   test("returns OVERDUE_ITEMS_EXIST when patron has overdue items", async () => {
     // Get an available item to try reserving
-    const list = await call("v1:catalog.list", { available: true, limit: 1 }, undefined, token);
+    const list = await call("catalog.list:v1", { available: true, limit: 1 }, undefined, token);
     const items = (list.body.result as { items: Array<{ id: string }> }).items;
     const itemId = items[0]!.id;
 
-    const res = await call("v1:item.reserve", { itemId }, undefined, token);
+    const res = await call("item.reserve:v1", { itemId }, undefined, token);
     expect(res.status).toBe(200);
     expect(res.body.state).toBe("error");
     expect(res.body.error!.code).toBe("OVERDUE_ITEMS_EXIST");
@@ -421,13 +421,13 @@ describe("v1:item.reserve", () => {
     expect(typeof cause.count).toBe("number");
     expect(cause.count).toBeGreaterThanOrEqual(2);
     expect(typeof cause.hint).toBe("string");
-    expect(cause.hint).toContain("v1:patron.get");
+    expect(cause.hint).toContain("patron.get:v1");
   });
 });
 
 // ── patron.get ──────────────────────────────────────────────────────────
 
-describe("v1:patron.get", () => {
+describe("patron.get:v1", () => {
   let token: string;
 
   beforeAll(async () => {
@@ -436,7 +436,7 @@ describe("v1:patron.get", () => {
   });
 
   test("returns patron data with overdueItems array", async () => {
-    const res = await call("v1:patron.get", {}, undefined, token);
+    const res = await call("patron.get:v1", {}, undefined, token);
     expect(res.status).toBe(200);
     expect(res.body.state).toBe("complete");
 
@@ -469,7 +469,7 @@ describe("v1:patron.get", () => {
   });
 
   test("newly created patron has at least 2 overdue items", async () => {
-    const res = await call("v1:patron.get", {}, undefined, token);
+    const res = await call("patron.get:v1", {}, undefined, token);
     const result = res.body.result as {
       overdueItems: unknown[];
       totalOverdue: number;
@@ -495,7 +495,7 @@ describe("v1:patron.get", () => {
 
 // ── patron.history ──────────────────────────────────────────────────────
 
-describe("v1:patron.history", () => {
+describe("patron.history:v1", () => {
   let token: string;
 
   beforeAll(async () => {
@@ -504,7 +504,7 @@ describe("v1:patron.history", () => {
   });
 
   test("returns paginated records with patronId, records, total, limit, offset", async () => {
-    const res = await call("v1:patron.history", {}, undefined, token);
+    const res = await call("patron.history:v1", {}, undefined, token);
     expect(res.status).toBe(200);
     expect(res.body.state).toBe("complete");
 
@@ -539,8 +539,8 @@ describe("v1:patron.history", () => {
   });
 
   test("respects limit and offset parameters", async () => {
-    const page1 = await call("v1:patron.history", { limit: 1, offset: 0 }, undefined, token);
-    const page2 = await call("v1:patron.history", { limit: 1, offset: 1 }, undefined, token);
+    const page1 = await call("patron.history:v1", { limit: 1, offset: 0 }, undefined, token);
+    const page2 = await call("patron.history:v1", { limit: 1, offset: 1 }, undefined, token);
 
     const result1 = page1.body.result as { records: Array<{ lendingId: string }> };
     const result2 = page2.body.result as { records: Array<{ lendingId: string }> };

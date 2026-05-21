@@ -100,7 +100,7 @@ async function generateReport() {
   // Clear previous envelope exchanges for clean lifecycle view
   clearEnvelopeViewer();
 
-  const result = await callApi('v1:report.generate', args);
+  const result = await callApi('report.generate:v1', args);
 
   if (result.data?.state === 'error') {
     reportState.generating = false;

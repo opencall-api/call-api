@@ -8,7 +8,7 @@ export async function initDashboard() {
 
   showLoading(content, 'Loading patron data...');
 
-  const result = await callApi('v1:patron.get');
+  const result = await callApi('patron.get:v1');
 
   if (result.data?.state === 'error') {
     renderError(content, result.data.error);
@@ -63,7 +63,7 @@ export async function initDashboard() {
   var appOrigin = window.location.origin;
   var suggestion = 'ask your favourite AI agent to reserve a book for you';
 
-  var randomResult = await callApi('v1:catalog.list', { type: 'book', limit: 20 });
+  var randomResult = await callApi('catalog.list:v1', { type: 'book', limit: 20 });
   var catalogItems = randomResult.data?.result?.items || randomResult.data?.items || [];
   if (catalogItems.length > 0) {
     var pick = catalogItems[Math.floor(Math.random() * catalogItems.length)];

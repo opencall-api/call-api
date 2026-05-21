@@ -82,7 +82,7 @@ async function loadCatalog() {
   if (catalogState.type) args.type = catalogState.type;
   if (catalogState.available !== null) args.available = catalogState.available;
 
-  const result = await callApi('v1:catalog.list', args);
+  const result = await callApi('catalog.list:v1', args);
 
   if (result.data?.state === 'error') {
     renderError(content, result.data.error);

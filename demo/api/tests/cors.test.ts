@@ -70,7 +70,7 @@ describe("CORS response headers", () => {
         Origin: APP_ORIGIN,
         "Content-Type": "application/json",
       },
-      body: JSON.stringify({ op: "v1:catalog.list", args: {} }),
+      body: JSON.stringify({ op: "catalog.list:v1", args: {} }),
     });
 
     // Should have CORS headers (even on 401 since no token)
@@ -111,7 +111,7 @@ describe("CORS response headers", () => {
         "Content-Type": "application/json",
         // No Authorization header - will get 401
       },
-      body: JSON.stringify({ op: "v1:catalog.list", args: {} }),
+      body: JSON.stringify({ op: "catalog.list:v1", args: {} }),
     });
 
     expect(res.status).toBe(401);

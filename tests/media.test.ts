@@ -28,8 +28,8 @@ async function callMultipart(
 }
 
 describe("Media Handling (REQ-MEDIA)", () => {
-  test("v1:todos.attach with multipart/form-data returns state=complete", async () => {
-    const { body: created } = await call("v1:todos.create", validTodo());
+  test("todos.attach:v1 with multipart/form-data returns state=complete", async () => {
+    const { body: created } = await call("todos.create:v1", validTodo());
     const todoId = (created.result as { id: string }).id;
 
     const file = {
@@ -39,7 +39,7 @@ describe("Media Handling (REQ-MEDIA)", () => {
     };
 
     const { status, body } = await callMultipart(
-      "v1:todos.attach",
+      "todos.attach:v1",
       { todoId },
       file,
     );
@@ -48,7 +48,7 @@ describe("Media Handling (REQ-MEDIA)", () => {
   });
 
   test("successful attach includes attachmentId in result", async () => {
-    const { body: created } = await call("v1:todos.create", validTodo());
+    const { body: created } = await call("todos.create:v1", validTodo());
     const todoId = (created.result as { id: string }).id;
 
     const file = {
@@ -57,13 +57,13 @@ describe("Media Handling (REQ-MEDIA)", () => {
       filename: "doc.txt",
     };
 
-    const { body } = await callMultipart("v1:todos.attach", { todoId }, file);
+    const { body } = await callMultipart("todos.attach:v1", { todoId }, file);
     const result = body.result as { attachmentId: string };
     expect(result.attachmentId).toBeTruthy();
   });
 
   test("todo with attachment includes location object", async () => {
-    const { body: created } = await call("v1:todos.create", validTodo());
+    const { body: created } = await call("todos.create:v1", validTodo());
     const todoId = (created.result as { id: string }).id;
 
     const file = {
@@ -71,16 +71,16 @@ describe("Media Handling (REQ-MEDIA)", () => {
       contentType: "text/plain",
       filename: "loc.txt",
     };
-    await callMultipart("v1:todos.attach", { todoId }, file);
+    await callMultipart("todos.attach:v1", { todoId }, file);
 
-    const { body: got } = await call("v1:todos.get", { id: todoId });
+    const { body: got } = await call("todos.get:v1", { id: todoId });
     const result = got.result as { location?: { uri: string } };
     expect(result.location).toBeDefined();
     expect(result.location!.uri).toContain("/media/");
   });
 
   test("location.uri points to /media/{id} path", async () => {
-    const { body: created } = await call("v1:todos.create", validTodo());
+    const { body: created } = await call("todos.create:v1", validTodo());
     const todoId = (created.result as { id: string }).id;
 
     const file = {
@@ -88,15 +88,15 @@ describe("Media Handling (REQ-MEDIA)", () => {
       contentType: "text/plain",
       filename: "uri.txt",
     };
-    await callMultipart("v1:todos.attach", { todoId }, file);
+    await callMultipart("todos.attach:v1", { todoId }, file);
 
-    const { body: got } = await call("v1:todos.get", { id: todoId });
+    const { body: got } = await call("todos.get:v1", { id: todoId });
     const result = got.result as { location: { uri: string } };
     expect(result.location.uri).toMatch(/^\/media\/[a-f0-9-]+$/);
   });
 
   test("GET /media/{id} returns HTTP 303 with Location header", async () => {
-    const { body: created } = await call("v1:todos.create", validTodo());
+    const { body: created } = await call("todos.create:v1", validTodo());
     const todoId = (created.result as { id: string }).id;
 
     const file = {
@@ -104,7 +104,7 @@ describe("Media Handling (REQ-MEDIA)", () => {
       contentType: "text/plain",
       filename: "redir.txt",
     };
-    const { body: attached } = await callMultipart("v1:todos.attach", { todoId }, file);
+    const { body: attached } = await callMultipart("todos.attach:v1", { todoId }, file);
     const attachmentId = (attached.result as { attachmentId: string }).attachmentId;
 
     const res = await fetch(`${API_URL}/media/${attachmentId}`, { redirect: "manual" });
@@ -113,7 +113,7 @@ describe("Media Handling (REQ-MEDIA)", () => {
   });
 
   test("following 303 redirect returns binary data with correct Content-Type", async () => {
-    const { body: created } = await call("v1:todos.create", validTodo());
+    const { body: created } = await call("todos.create:v1", validTodo());
     const todoId = (created.result as { id: string }).id;
 
     const content = "binary content test";
@@ -122,7 +122,7 @@ describe("Media Handling (REQ-MEDIA)", () => {
       contentType: "text/plain",
       filename: "binary.txt",
     };
-    const { body: attached } = await callMultipart("v1:todos.attach", { todoId }, file);
+    const { body: attached } = await callMultipart("todos.attach:v1", { todoId }, file);
     const attachmentId = (attached.result as { attachmentId: string }).attachmentId;
 
     // Follow the redirect manually
@@ -135,9 +135,9 @@ describe("Media Handling (REQ-MEDIA)", () => {
     expect(text).toBe(content);
   });
 
-  test("registry declares mediaSchema for v1:todos.attach", async () => {
+  test("registry declares mediaSchema for todos.attach:v1", async () => {
     const { body } = await getRegistry();
-    const attach = body.operations.find((o) => o.op === "v1:todos.attach");
+    const attach = body.operations.find((o) => o.op === "todos.attach:v1");
     expect(attach).toBeDefined();
     expect(attach!.mediaSchema).toBeDefined();
     const ms = attach!.mediaSchema as { name: string; acceptedTypes: string[]; maxBytes: number };
@@ -146,11 +146,11 @@ describe("Media Handling (REQ-MEDIA)", () => {
     expect(ms.maxBytes).toBeGreaterThan(0);
   });
 
-  test("v1:todos.attach with ref URI succeeds", async () => {
-    const { body: created } = await call("v1:todos.create", validTodo());
+  test("todos.attach:v1 with ref URI succeeds", async () => {
+    const { body: created } = await call("todos.create:v1", validTodo());
     const todoId = (created.result as { id: string }).id;
 
-    const { status, body } = await call("v1:todos.attach", {
+    const { status, body } = await call("todos.attach:v1", {
       todoId,
       ref: "https://example.com/document.pdf",
     });
@@ -158,8 +158,8 @@ describe("Media Handling (REQ-MEDIA)", () => {
     expect(body.state).toBe("complete");
   });
 
-  test("v1:todos.attach with unsupported MIME type returns error", async () => {
-    const { body: created } = await call("v1:todos.create", validTodo());
+  test("todos.attach:v1 with unsupported MIME type returns error", async () => {
+    const { body: created } = await call("todos.create:v1", validTodo());
     const todoId = (created.result as { id: string }).id;
 
     const file = {
@@ -167,7 +167,7 @@ describe("Media Handling (REQ-MEDIA)", () => {
       contentType: "application/x-executable",
       filename: "virus.exe",
     };
-    const { status, body } = await callMultipart("v1:todos.attach", { todoId }, file);
+    const { status, body } = await callMultipart("todos.attach:v1", { todoId }, file);
     expect(status).toBe(200);
     expect(body.state).toBe("error");
     expect((body.error as { code: string }).code).toBe("UNSUPPORTED_MEDIA_TYPE");

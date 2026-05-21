@@ -50,7 +50,7 @@ describe("Full Demo Workflow", () => {
         "Authorization": `Bearer ${humanToken}`,
       },
       body: JSON.stringify({
-        op: "v1:catalog.list",
+        op: "catalog.list:v1",
         args: { type: "book", limit: 10 },
       }),
     });
@@ -70,7 +70,7 @@ describe("Full Demo Workflow", () => {
         "Authorization": `Bearer ${humanToken}`,
       },
       body: JSON.stringify({
-        op: "v1:item.get",
+        op: "item.get:v1",
         args: { itemId: TEST_BOOK_ID },
       }),
     });
@@ -90,7 +90,7 @@ describe("Full Demo Workflow", () => {
         "Authorization": `Bearer ${humanToken}`,
       },
       body: JSON.stringify({
-        op: "v1:item.reserve",
+        op: "item.reserve:v1",
         args: { itemId: "item-book-001" },  // Use test book with many copies
       }),
     });
@@ -128,7 +128,7 @@ describe("Full Demo Workflow", () => {
         "Authorization": `Bearer ${agentToken}`,
       },
       body: JSON.stringify({
-        op: "v1:catalog.list",
+        op: "catalog.list:v1",
         args: { limit: 5 },
       }),
     });
@@ -147,7 +147,7 @@ describe("Full Demo Workflow", () => {
         "Authorization": `Bearer ${agentToken}`,
       },
       body: JSON.stringify({
-        op: "v1:item.reserve",
+        op: "item.reserve:v1",
         args: { itemId: "item-book-002" },  // Use test book with many copies
       }),
     });
@@ -167,7 +167,7 @@ describe("Full Demo Workflow", () => {
         "Authorization": `Bearer ${agentToken}`,
       },
       body: JSON.stringify({
-        op: "v1:item.return",
+        op: "item.return:v1",
         args: { itemId: TEST_BOOK_ID },
       }),
     });
@@ -187,7 +187,7 @@ describe("Full Demo Workflow", () => {
         "Authorization": `Bearer ${humanToken}`,
       },
       body: JSON.stringify({
-        op: "v1:item.return",
+        op: "item.return:v1",
         args: { itemId: TEST_BOOK_ID },
       }),
     });
@@ -204,7 +204,7 @@ describe("Full Demo Workflow", () => {
         "Authorization": `Bearer ${humanToken}`,
       },
       body: JSON.stringify({
-        op: "v1:patron.history",
+        op: "patron.history:v1",
         args: {},
       }),
     });
@@ -263,7 +263,7 @@ describe("Test User Integration", () => {
         "Authorization": `Bearer ${token}`,
       },
       body: JSON.stringify({
-        op: "v1:item.get",
+        op: "item.get:v1",
         args: { itemId: TEST_BOOK_ID },
       }),
     });
@@ -314,7 +314,7 @@ describe("CORS Integration", () => {
         "Origin": APP_ORIGIN,
       },
       body: JSON.stringify({
-        op: "v1:catalog.list",
+        op: "catalog.list:v1",
         args: { limit: 5 },
       }),
     });
@@ -356,12 +356,12 @@ describe("API Registry", () => {
 
     // Verify key operations exist (registry uses 'op' not 'name')
     const opNames = body.operations.map((op: any) => op.op);
-    expect(opNames).toContain("v1:catalog.list");
-    expect(opNames).toContain("v1:item.get");
-    expect(opNames).toContain("v1:item.reserve");
-    expect(opNames).toContain("v1:item.return");
-    expect(opNames).toContain("v1:patron.get");
-    expect(opNames).toContain("v1:patron.history");
+    expect(opNames).toContain("catalog.list:v1");
+    expect(opNames).toContain("item.get:v1");
+    expect(opNames).toContain("item.reserve:v1");
+    expect(opNames).toContain("item.return:v1");
+    expect(opNames).toContain("patron.get:v1");
+    expect(opNames).toContain("patron.history:v1");
   });
 
   test("operations have required metadata", async () => {
@@ -398,7 +398,7 @@ describe("Async Operations", () => {
         "Authorization": `Bearer ${token}`,
       },
       body: JSON.stringify({
-        op: "v1:report.generate",
+        op: "report.generate:v1",
         args: { type: "overdue" },
       }),
     });

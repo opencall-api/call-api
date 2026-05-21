@@ -7,7 +7,7 @@ import { returnItem } from "../services/lending.ts";
 /**
  * Return a checked-out item to the library.
  *
- * @op v1:item.return
+ * @op item.return:v1
  * @execution sync
  * @timeout 5000
  * @ttl 0

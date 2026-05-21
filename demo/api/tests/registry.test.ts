@@ -37,15 +37,15 @@ describe("GET /.well-known/ops", () => {
     const opNames = ops.map((o) => o.op);
 
     const expectedSync = [
-      "v1:catalog.list",
-      "v1:catalog.listLegacy",
-      "v1:item.get",
-      "v1:item.getMedia",
-      "v1:item.reserve",
-      "v1:item.return",
-      "v1:patron.get",
-      "v1:patron.history",
-      "v1:patron.fines",
+      "catalog.list:v1",
+      "catalog.listLegacy:v1",
+      "item.get:v1",
+      "item.getMedia:v1",
+      "item.reserve:v1",
+      "item.return:v1",
+      "patron.get:v1",
+      "patron.history:v1",
+      "patron.fines:v1",
     ];
 
     for (const expected of expectedSync) {
@@ -101,7 +101,7 @@ describe("GET /.well-known/ops", () => {
     }
   });
 
-  test("v1:catalog.listLegacy has deprecated: true, sunset, and replacement", async () => {
+  test("catalog.listLegacy:v1 has deprecated: true, sunset, and replacement", async () => {
     const res = await getRegistry();
     const ops = res.body.operations as Array<{
       op: string;
@@ -110,11 +110,11 @@ describe("GET /.well-known/ops", () => {
       replacement?: string;
     }>;
 
-    const legacy = ops.find((o) => o.op === "v1:catalog.listLegacy");
+    const legacy = ops.find((o) => o.op === "catalog.listLegacy:v1");
     expect(legacy).toBeDefined();
     expect(legacy!.deprecated).toBe(true);
     expect(legacy!.sunset).toBe("2026-06-01");
-    expect(legacy!.replacement).toBe("v1:catalog.list");
+    expect(legacy!.replacement).toBe("catalog.list:v1");
   });
 
   test("response includes ETag and Cache-Control headers", async () => {

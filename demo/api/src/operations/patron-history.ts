@@ -6,7 +6,7 @@ import { getLendingHistory } from "../services/lending.ts";
 /**
  * Get lending history with filters and pagination.
  *
- * @op v1:patron.history
+ * @op patron.history:v1
  * @execution sync
  * @timeout 5000
  * @ttl 300

@@ -11,14 +11,14 @@ export type Scope =
 
 /** Mapping from scope to the operations it grants access to */
 export const SCOPE_TO_OPS: Record<Scope, string[]> = {
-  "items:browse": ["v1:catalog.list", "v1:catalog.listLegacy"],
-  "items:read": ["v1:item.get", "v1:item.getMedia"],
-  "items:write": ["v1:item.reserve"],
-  "items:checkin": ["v1:item.return"],
-  "items:manage": ["v1:catalog.bulkImport"],
-  "patron:read": ["v1:patron.get", "v1:patron.history"],
-  "patron:billing": ["v1:patron.fines"],
-  "reports:generate": ["v1:report.generate"],
+  "items:browse": ["catalog.list:v1", "catalog.listLegacy:v1"],
+  "items:read": ["item.get:v1", "item.getMedia:v1"],
+  "items:write": ["item.reserve:v1"],
+  "items:checkin": ["item.return:v1"],
+  "items:manage": ["catalog.bulkImport:v1"],
+  "patron:read": ["patron.get:v1", "patron.history:v1"],
+  "patron:billing": ["patron.fines:v1"],
+  "reports:generate": ["report.generate:v1"],
 };
 
 /** Inverted mapping: operation name -> required scopes */

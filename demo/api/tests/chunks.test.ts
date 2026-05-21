@@ -25,7 +25,7 @@ describe("Chunked retrieval", () => {
    * Returns null if the operation is not implemented yet.
    */
   async function submitAndWaitForReport(): Promise<string | null> {
-    const res = await call("v1:report.generate", {}, undefined, token);
+    const res = await call("report.generate:v1", {}, undefined, token);
 
     if (res.status === 400 && res.body.error?.code === "UNKNOWN_OPERATION") {
       return null;
@@ -52,7 +52,7 @@ describe("Chunked retrieval", () => {
       const requestId = await submitAndWaitForReport();
 
       if (!requestId) {
-        console.log("v1:report.generate not implemented yet, skipping chunks test");
+        console.log("report.generate:v1 not implemented yet, skipping chunks test");
         return;
       }
 
@@ -80,7 +80,7 @@ describe("Chunked retrieval", () => {
       const requestId = await submitAndWaitForReport();
 
       if (!requestId) {
-        console.log("v1:report.generate not implemented yet, skipping checksum format test");
+        console.log("report.generate:v1 not implemented yet, skipping checksum format test");
         return;
       }
 
@@ -109,7 +109,7 @@ describe("Chunked retrieval", () => {
       const requestId = await submitAndWaitForReport();
 
       if (!requestId) {
-        console.log("v1:report.generate not implemented yet, skipping checksumPrevious test");
+        console.log("report.generate:v1 not implemented yet, skipping checksumPrevious test");
         return;
       }
 
@@ -137,7 +137,7 @@ describe("Chunked retrieval", () => {
       const requestId = await submitAndWaitForReport();
 
       if (!requestId) {
-        console.log("v1:report.generate not implemented yet, skipping final chunk test");
+        console.log("report.generate:v1 not implemented yet, skipping final chunk test");
         return;
       }
 
